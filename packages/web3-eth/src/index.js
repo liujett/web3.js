@@ -23,18 +23,18 @@
 "use strict";
 
 var _ = require('underscore');
-var core = require('web3-core');
-var helpers = require('web3-core-helpers');
-var Subscriptions = require('web3-core-subscriptions').subscriptions;
-var Method = require('web3-core-method');
-var utils = require('web3-utils');
-var Net = require('web3-net');
+var core = require('../../web3-core');
+var helpers = require('../../web3-core-helpers');
+var Subscriptions = require('../../web3-core-subscriptions').subscriptions;
+var Method = require('../../web3-core-method');
+var utils = require('../../web3-utils');
+var Net = require('../../web3-net');
 
-var Personal = require('web3-eth-personal');
-var BaseContract = require('web3-eth-contract');
-var Iban = require('web3-eth-iban');
-var Accounts = require('web3-eth-accounts');
-var abi = require('web3-eth-abi');
+var Personal = require('../../web3-eth-personal');
+var BaseContract = require('../../web3-eth-contract');
+var Iban = require('../../web3-eth-iban');
+var Accounts = require('../../web3-eth-accounts');
+var abi = require('../../web3-eth-abi');
 
 var getNetworkType = require('./getNetworkType.js');
 var formatter = helpers.formatters;
@@ -237,6 +237,13 @@ var Eth = function Eth() {
             params: 2,
             inputFormatter: [formatter.inputAddressFormatter, formatter.inputDefaultBlockNumberFormatter],
             outputFormatter: formatter.outputBigNumberFormatter
+        }),
+        new Method({
+            name: 'getPower',
+            call: 'eth_getPower',
+            params: 2,
+            inputFormatter: [formatters.inputAddressFormatter, formatters.inputDefaultBlockNumberFormatter],
+            outputFormatter: formatters.outputBigNumberFormatter
         }),
         new Method({
             name: 'getStorageAt',
