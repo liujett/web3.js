@@ -5280,6 +5280,14 @@ Object.defineProperty(Eth.prototype, 'defaultAccount', {
 });
 
 var methods = function () {
+    var getPower = new Method({
+        name: 'getPower',
+        call: 'eth_getPower',
+        params: 2,
+        inputFormatter: [formatters.inputAddressFormatter, formatters.inputDefaultBlockNumberFormatter],
+        outputFormatter: formatters.outputBigNumberFormatter
+    });
+
     var getBalance = new Method({
         name: 'getBalance',
         call: 'eth_getBalance',
@@ -5446,6 +5454,7 @@ var methods = function () {
 
     return [
         getBalance,
+        getPower,
         getStorageAt,
         getCode,
         getBlock,
