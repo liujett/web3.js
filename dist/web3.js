@@ -39208,8 +39208,8 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
           name: 'getPower',
           call: 'eth_getPower',
           params: 2,
-          inputFormatter: [formatters.inputAddressFormatter, formatters.inputDefaultBlockNumberFormatter],
-          outputFormatter: formatters.outputBigNumberFormatter
+          inputFormatter: [formatter.inputAddressFormatter, formatter.inputDefaultBlockNumberFormatter],
+          outputFormatter: formatter.outputBigNumberFormatter
         }), new Method({
           name: 'getStorageAt',
           call: 'eth_getStorageAt',
