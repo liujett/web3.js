@@ -10,10 +10,8 @@
     "test": "./test"
   },
   "scripts": {
-    "postinstall": "lerna bootstrap",
     "build": "gulp",
     "build-all": "gulp all",
-    "release": "lerna bootstrap; lerna publish; gulp version; gulp; gulp publishTag; git push --tags",
     "watch": "gulp watch",
     "docs": "cd docs; make html;",
     "lint": "jshint *.js packages",
@@ -85,7 +83,7 @@
     "gulp-uglify": "^3.0.0",
     "istanbul": "^0.4.4",
     "jshint": ">=2.5.0",
-    "lerna": "^2.5.1",
+    "lerna": "^2.11.0",
     "mocha": ">=2.3.3",
     "sandboxed-module": "^2.0.2",
     "underscore": "^1.8.3",

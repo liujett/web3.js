@@ -476,14 +476,14 @@
 225 silly installInDir      'number-to-bn': '1.7.0',
 225 silly installInDir      randomhex: '0.1.5',
 225 silly installInDir      utf8: '2.1.1' } }
-226 silly installInDir writing tempJson { dependencies: { underscore: '1.8.3', 'swarm-js': '0.1.37', got: '7.1.0' } }
-227 silly installInDir writing tempJson { dependencies:
-227 silly installInDir    { underscore: '1.8.3',
-227 silly installInDir      websocket:
-227 silly installInDir       'git://github.com/frozeman/WebSocket-Node.git#browserifyCompatible' } }
-228 silly getExecOpts { cwd: 'E:\\coding\\Node\\web3.js\\packages\\web3-providers-ws' }
+226 silly installInDir writing tempJson { dependencies:
+226 silly installInDir    { underscore: '1.8.3',
+226 silly installInDir      websocket:
+226 silly installInDir       'git://github.com/frozeman/WebSocket-Node.git#browserifyCompatible' } }
+227 silly installInDir writing tempJson { dependencies: { underscore: '1.8.3', 'swarm-js': '0.1.37', got: '7.1.0' } }
+228 silly getExecOpts { cwd: 'E:\\coding\\Node\\web3.js\\packages\\web3-bzz' }
 229 silly installInDir [ 'npm', [ 'install' ] ]
-230 silly getExecOpts { cwd: 'E:\\coding\\Node\\web3.js\\packages\\web3-bzz' }
+230 silly getExecOpts { cwd: 'E:\\coding\\Node\\web3.js\\packages\\web3-providers-ws' }
 231 silly installInDir [ 'npm', [ 'install' ] ]
 232 silly getExecOpts { cwd: 'E:\\coding\\Node\\web3.js\\packages\\web3-utils' }
 233 silly installInDir [ 'npm', [ 'install' ] ]
@@ -520,13 +520,13 @@
 241 error npm ERR! This is probably not a problem with npm. There is likely additional logging output above.
 241 error
 241 error npm ERR! A complete log of this run can be found in:
-241 error npm ERR!     C:\Users\jett\AppData\Roaming\npm-cache\_logs\2018-07-26T04_12_03_731Z-debug.log
+241 error npm ERR!     C:\Users\jett\AppData\Roaming\npm-cache\_logs\2018-07-26T06_47_21_267Z-debug.log
 241 error
 241 error > sha3@1.2.0 install E:\coding\Node\web3.js\packages\web3-utils\node_modules\sha3
 241 error > node-gyp rebuild
 241 error
 241 error
-241 error CLINK CLINK E:\coding\Node\web3.js\packages\web3-utils\node_modules\sha3>if not defined npm_config_node_gyp (node "D:\nvm\v10.5.0\node_modules\npm\node_modules\npm-lifecycle\node-gyp-bin\\..\..\node_modules\node-gyp\bin\node-gyp.js" rebuild )  else (node "D:\nvm\v10.5.0\node_modules\npm\node_modules\node-gyp\bin\node-gyp.js" rebuild )
+241 error CLINK CLINK CLINK E:\coding\Node\web3.js\packages\web3-utils\node_modules\sha3>if not defined npm_config_node_gyp (node "D:\nvm\v10.5.0\node_modules\npm\node_modules\npm-lifecycle\node-gyp-bin\\..\..\node_modules\node-gyp\bin\node-gyp.js" rebuild )  else (node "D:\nvm\v10.5.0\node_modules\npm\node_modules\node-gyp\bin\node-gyp.js" rebuild )
 241 error �ڴ˽��������һ������һ����Ŀ����Ҫ���ò������ɣ������ӡ�/m�����ء�
 241 error   addon.cpp
 241 error   displayIntermediateValues.cpp
