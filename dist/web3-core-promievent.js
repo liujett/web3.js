@@ -33,7 +33,440 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
         o(t[i]);
       }return o;
     }return r;
-  }()({ "BN": [function (require, module, exports) {
+  }()({ 1: [function (require, module, exports) {
+      module.exports = require('./register')().Promise;
+    }, { "./register": 3 }], 2: [function (require, module, exports) {
+      "use strict";
+      // global key for user preferred registration
+
+      var REGISTRATION_KEY = '@@any-promise/REGISTRATION',
+
+      // Prior registration (preferred or detected)
+      registered = null;
+
+      /**
+       * Registers the given implementation.  An implementation must
+       * be registered prior to any call to `require("any-promise")`,
+       * typically on application load.
+       *
+       * If called with no arguments, will return registration in
+       * following priority:
+       *
+       * For Node.js:
+       *
+       * 1. Previous registration
+       * 2. global.Promise if node.js version >= 0.12
+       * 3. Auto detected promise based on first sucessful require of
+       *    known promise libraries. Note this is a last resort, as the
+       *    loaded library is non-deterministic. node.js >= 0.12 will
+       *    always use global.Promise over this priority list.
+       * 4. Throws error.
+       *
+       * For Browser:
+       *
+       * 1. Previous registration
+       * 2. window.Promise
+       * 3. Throws error.
+       *
+       * Options:
+       *
+       * Promise: Desired Promise constructor
+       * global: Boolean - Should the registration be cached in a global variable to
+       * allow cross dependency/bundle registration?  (default true)
+       */
+      module.exports = function (root, loadImplementation) {
+        return function register(implementation, opts) {
+          implementation = implementation || null;
+          opts = opts || {};
+          // global registration unless explicitly  {global: false} in options (default true)
+          var registerGlobal = opts.global !== false;
+
+          // load any previous global registration
+          if (registered === null && registerGlobal) {
+            registered = root[REGISTRATION_KEY] || null;
+          }
+
+          if (registered !== null && implementation !== null && registered.implementation !== implementation) {
+            // Throw error if attempting to redefine implementation
+            throw new Error('any-promise already defined as "' + registered.implementation + '".  You can only register an implementation before the first ' + ' call to require("any-promise") and an implementation cannot be changed');
+          }
+
+          if (registered === null) {
+            // use provided implementation
+            if (implementation !== null && typeof opts.Promise !== 'undefined') {
+              registered = {
+                Promise: opts.Promise,
+                implementation: implementation
+              };
+            } else {
+              // require implementation if implementation is specified but not provided
+              registered = loadImplementation(implementation);
+            }
+
+            if (registerGlobal) {
+              // register preference globally in case multiple installations
+              root[REGISTRATION_KEY] = registered;
+            }
+          }
+
+          return registered;
+        };
+      };
+    }, {}], 3: [function (require, module, exports) {
+      "use strict";
+
+      module.exports = require('./loader')(window, loadImplementation);
+
+      /**
+       * Browser specific loadImplementation.  Always uses `window.Promise`
+       *
+       * To register a custom implementation, must register with `Promise` option.
+       */
+      function loadImplementation() {
+        if (typeof window.Promise === 'undefined') {
+          throw new Error("any-promise browser requires a polyfill or explicit registration" + " e.g: require('any-promise/register/bluebird')");
+        }
+        return {
+          Promise: window.Promise,
+          implementation: 'window.Promise'
+        };
+      }
+    }, { "./loader": 2 }], 4: [function (require, module, exports) {}, {}], 5: [function (require, module, exports) {
+      'use strict';
+
+      var has = Object.prototype.hasOwnProperty,
+          prefix = '~';
+
+      /**
+       * Constructor to create a storage for our `EE` objects.
+       * An `Events` instance is a plain object whose properties are event names.
+       *
+       * @constructor
+       * @private
+       */
+      function Events() {}
+
+      //
+      // We try to not inherit from `Object.prototype`. In some engines creating an
+      // instance in this way is faster than calling `Object.create(null)` directly.
+      // If `Object.create(null)` is not supported we prefix the event names with a
+      // character to make sure that the built-in object properties are not
+      // overridden or used as an attack vector.
+      //
+      if (Object.create) {
+        Events.prototype = Object.create(null);
+
+        //
+        // This hack is needed because the `__proto__` property is still inherited in
+        // some old browsers like Android 4, iPhone 5.1, Opera 11 and Safari 5.
+        //
+        if (!new Events().__proto__) prefix = false;
+      }
+
+      /**
+       * Representation of a single event listener.
+       *
+       * @param {Function} fn The listener function.
+       * @param {*} context The context to invoke the listener with.
+       * @param {Boolean} [once=false] Specify if the listener is a one-time listener.
+       * @constructor
+       * @private
+       */
+      function EE(fn, context, once) {
+        this.fn = fn;
+        this.context = context;
+        this.once = once || false;
+      }
+
+      /**
+       * Add a listener for a given event.
+       *
+       * @param {EventEmitter} emitter Reference to the `EventEmitter` instance.
+       * @param {(String|Symbol)} event The event name.
+       * @param {Function} fn The listener function.
+       * @param {*} context The context to invoke the listener with.
+       * @param {Boolean} once Specify if the listener is a one-time listener.
+       * @returns {EventEmitter}
+       * @private
+       */
+      function addListener(emitter, event, fn, context, once) {
+        if (typeof fn !== 'function') {
+          throw new TypeError('The listener must be a function');
+        }
+
+        var listener = new EE(fn, context || emitter, once),
+            evt = prefix ? prefix + event : event;
+
+        if (!emitter._events[evt]) emitter._events[evt] = listener, emitter._eventsCount++;else if (!emitter._events[evt].fn) emitter._events[evt].push(listener);else emitter._events[evt] = [emitter._events[evt], listener];
+
+        return emitter;
+      }
+
+      /**
+       * Clear event by name.
+       *
+       * @param {EventEmitter} emitter Reference to the `EventEmitter` instance.
+       * @param {(String|Symbol)} evt The Event name.
+       * @private
+       */
+      function clearEvent(emitter, evt) {
+        if (--emitter._eventsCount === 0) emitter._events = new Events();else delete emitter._events[evt];
+      }
+
+      /**
+       * Minimal `EventEmitter` interface that is molded against the Node.js
+       * `EventEmitter` interface.
+       *
+       * @constructor
+       * @public
+       */
+      function EventEmitter() {
+        this._events = new Events();
+        this._eventsCount = 0;
+      }
+
+      /**
+       * Return an array listing the events for which the emitter has registered
+       * listeners.
+       *
+       * @returns {Array}
+       * @public
+       */
+      EventEmitter.prototype.eventNames = function eventNames() {
+        var names = [],
+            events,
+            name;
+
+        if (this._eventsCount === 0) return names;
+
+        for (name in events = this._events) {
+          if (has.call(events, name)) names.push(prefix ? name.slice(1) : name);
+        }
+
+        if (Object.getOwnPropertySymbols) {
+          return names.concat(Object.getOwnPropertySymbols(events));
+        }
+
+        return names;
+      };
+
+      /**
+       * Return the listeners registered for a given event.
+       *
+       * @param {(String|Symbol)} event The event name.
+       * @returns {Array} The registered listeners.
+       * @public
+       */
+      EventEmitter.prototype.listeners = function listeners(event) {
+        var evt = prefix ? prefix + event : event,
+            handlers = this._events[evt];
+
+        if (!handlers) return [];
+        if (handlers.fn) return [handlers.fn];
+
+        for (var i = 0, l = handlers.length, ee = new Array(l); i < l; i++) {
+          ee[i] = handlers[i].fn;
+        }
+
+        return ee;
+      };
+
+      /**
+       * Return the number of listeners listening to a given event.
+       *
+       * @param {(String|Symbol)} event The event name.
+       * @returns {Number} The number of listeners.
+       * @public
+       */
+      EventEmitter.prototype.listenerCount = function listenerCount(event) {
+        var evt = prefix ? prefix + event : event,
+            listeners = this._events[evt];
+
+        if (!listeners) return 0;
+        if (listeners.fn) return 1;
+        return listeners.length;
+      };
+
+      /**
+       * Calls each of the listeners registered for a given event.
+       *
+       * @param {(String|Symbol)} event The event name.
+       * @returns {Boolean} `true` if the event had listeners, else `false`.
+       * @public
+       */
+      EventEmitter.prototype.emit = function emit(event, a1, a2, a3, a4, a5) {
+        var evt = prefix ? prefix + event : event;
+
+        if (!this._events[evt]) return false;
+
+        var listeners = this._events[evt],
+            len = arguments.length,
+            args,
+            i;
+
+        if (listeners.fn) {
+          if (listeners.once) this.removeListener(event, listeners.fn, undefined, true);
+
+          switch (len) {
+            case 1:
+              return listeners.fn.call(listeners.context), true;
+            case 2:
+              return listeners.fn.call(listeners.context, a1), true;
+            case 3:
+              return listeners.fn.call(listeners.context, a1, a2), true;
+            case 4:
+              return listeners.fn.call(listeners.context, a1, a2, a3), true;
+            case 5:
+              return listeners.fn.call(listeners.context, a1, a2, a3, a4), true;
+            case 6:
+              return listeners.fn.call(listeners.context, a1, a2, a3, a4, a5), true;
+          }
+
+          for (i = 1, args = new Array(len - 1); i < len; i++) {
+            args[i - 1] = arguments[i];
+          }
+
+          listeners.fn.apply(listeners.context, args);
+        } else {
+          var length = listeners.length,
+              j;
+
+          for (i = 0; i < length; i++) {
+            if (listeners[i].once) this.removeListener(event, listeners[i].fn, undefined, true);
+
+            switch (len) {
+              case 1:
+                listeners[i].fn.call(listeners[i].context);break;
+              case 2:
+                listeners[i].fn.call(listeners[i].context, a1);break;
+              case 3:
+                listeners[i].fn.call(listeners[i].context, a1, a2);break;
+              case 4:
+                listeners[i].fn.call(listeners[i].context, a1, a2, a3);break;
+              default:
+                if (!args) for (j = 1, args = new Array(len - 1); j < len; j++) {
+                  args[j - 1] = arguments[j];
+                }
+
+                listeners[i].fn.apply(listeners[i].context, args);
+            }
+          }
+        }
+
+        return true;
+      };
+
+      /**
+       * Add a listener for a given event.
+       *
+       * @param {(String|Symbol)} event The event name.
+       * @param {Function} fn The listener function.
+       * @param {*} [context=this] The context to invoke the listener with.
+       * @returns {EventEmitter} `this`.
+       * @public
+       */
+      EventEmitter.prototype.on = function on(event, fn, context) {
+        return addListener(this, event, fn, context, false);
+      };
+
+      /**
+       * Add a one-time listener for a given event.
+       *
+       * @param {(String|Symbol)} event The event name.
+       * @param {Function} fn The listener function.
+       * @param {*} [context=this] The context to invoke the listener with.
+       * @returns {EventEmitter} `this`.
+       * @public
+       */
+      EventEmitter.prototype.once = function once(event, fn, context) {
+        return addListener(this, event, fn, context, true);
+      };
+
+      /**
+       * Remove the listeners of a given event.
+       *
+       * @param {(String|Symbol)} event The event name.
+       * @param {Function} fn Only remove the listeners that match this function.
+       * @param {*} context Only remove the listeners that have this context.
+       * @param {Boolean} once Only remove one-time listeners.
+       * @returns {EventEmitter} `this`.
+       * @public
+       */
+      EventEmitter.prototype.removeListener = function removeListener(event, fn, context, once) {
+        var evt = prefix ? prefix + event : event;
+
+        if (!this._events[evt]) return this;
+        if (!fn) {
+          clearEvent(this, evt);
+          return this;
+        }
+
+        var listeners = this._events[evt];
+
+        if (listeners.fn) {
+          if (listeners.fn === fn && (!once || listeners.once) && (!context || listeners.context === context)) {
+            clearEvent(this, evt);
+          }
+        } else {
+          for (var i = 0, events = [], length = listeners.length; i < length; i++) {
+            if (listeners[i].fn !== fn || once && !listeners[i].once || context && listeners[i].context !== context) {
+              events.push(listeners[i]);
+            }
+          }
+
+          //
+          // Reset the array, or remove it completely if we have no more listeners.
+          //
+          if (events.length) this._events[evt] = events.length === 1 ? events[0] : events;else clearEvent(this, evt);
+        }
+
+        return this;
+      };
+
+      /**
+       * Remove all listeners, or those of the specified event.
+       *
+       * @param {(String|Symbol)} [event] The event name.
+       * @returns {EventEmitter} `this`.
+       * @public
+       */
+      EventEmitter.prototype.removeAllListeners = function removeAllListeners(event) {
+        var evt;
+
+        if (event) {
+          evt = prefix ? prefix + event : event;
+          if (this._events[evt]) clearEvent(this, evt);
+        } else {
+          this._events = new Events();
+          this._eventsCount = 0;
+        }
+
+        return this;
+      };
+
+      //
+      // Alias methods names because people roll like that.
+      //
+      EventEmitter.prototype.off = EventEmitter.prototype.removeListener;
+      EventEmitter.prototype.addListener = EventEmitter.prototype.on;
+
+      //
+      // Expose the prefix.
+      //
+      EventEmitter.prefixed = prefix;
+
+      //
+      // Allow `EventEmitter` to be imported as module namespace.
+      //
+      EventEmitter.EventEmitter = EventEmitter;
+
+      //
+      // Expose the module.
+      //
+      if ('undefined' !== typeof module) {
+        module.exports = EventEmitter;
+      }
+    }, {}], "BN": [function (require, module, exports) {
       (function (module, exports) {
         'use strict';
 
@@ -3393,361 +3826,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
           return res._forceRed(this);
         };
       })(typeof module === 'undefined' || module, this);
-    }, { "buffer": 1 }], 1: [function (require, module, exports) {}, {}], 2: [function (require, module, exports) {
-      module.exports = require('./register')().Promise;
-    }, { "./register": 4 }], 3: [function (require, module, exports) {
-      "use strict";
-      // global key for user preferred registration
-
-      var REGISTRATION_KEY = '@@any-promise/REGISTRATION',
-
-      // Prior registration (preferred or detected)
-      registered = null;
-
-      /**
-       * Registers the given implementation.  An implementation must
-       * be registered prior to any call to `require("any-promise")`,
-       * typically on application load.
-       *
-       * If called with no arguments, will return registration in
-       * following priority:
-       *
-       * For Node.js:
-       *
-       * 1. Previous registration
-       * 2. global.Promise if node.js version >= 0.12
-       * 3. Auto detected promise based on first sucessful require of
-       *    known promise libraries. Note this is a last resort, as the
-       *    loaded library is non-deterministic. node.js >= 0.12 will
-       *    always use global.Promise over this priority list.
-       * 4. Throws error.
-       *
-       * For Browser:
-       *
-       * 1. Previous registration
-       * 2. window.Promise
-       * 3. Throws error.
-       *
-       * Options:
-       *
-       * Promise: Desired Promise constructor
-       * global: Boolean - Should the registration be cached in a global variable to
-       * allow cross dependency/bundle registration?  (default true)
-       */
-      module.exports = function (root, loadImplementation) {
-        return function register(implementation, opts) {
-          implementation = implementation || null;
-          opts = opts || {};
-          // global registration unless explicitly  {global: false} in options (default true)
-          var registerGlobal = opts.global !== false;
-
-          // load any previous global registration
-          if (registered === null && registerGlobal) {
-            registered = root[REGISTRATION_KEY] || null;
-          }
-
-          if (registered !== null && implementation !== null && registered.implementation !== implementation) {
-            // Throw error if attempting to redefine implementation
-            throw new Error('any-promise already defined as "' + registered.implementation + '".  You can only register an implementation before the first ' + ' call to require("any-promise") and an implementation cannot be changed');
-          }
-
-          if (registered === null) {
-            // use provided implementation
-            if (implementation !== null && typeof opts.Promise !== 'undefined') {
-              registered = {
-                Promise: opts.Promise,
-                implementation: implementation
-              };
-            } else {
-              // require implementation if implementation is specified but not provided
-              registered = loadImplementation(implementation);
-            }
-
-            if (registerGlobal) {
-              // register preference globally in case multiple installations
-              root[REGISTRATION_KEY] = registered;
-            }
-          }
-
-          return registered;
-        };
-      };
-    }, {}], 4: [function (require, module, exports) {
-      "use strict";
-
-      module.exports = require('./loader')(window, loadImplementation);
-
-      /**
-       * Browser specific loadImplementation.  Always uses `window.Promise`
-       *
-       * To register a custom implementation, must register with `Promise` option.
-       */
-      function loadImplementation() {
-        if (typeof window.Promise === 'undefined') {
-          throw new Error("any-promise browser requires a polyfill or explicit registration" + " e.g: require('any-promise/register/bluebird')");
-        }
-        return {
-          Promise: window.Promise,
-          implementation: 'window.Promise'
-        };
-      }
-    }, { "./loader": 3 }], 5: [function (require, module, exports) {
-      'use strict';
-
-      //
-      // We store our EE objects in a plain object whose properties are event names.
-      // If `Object.create(null)` is not supported we prefix the event names with a
-      // `~` to make sure that the built-in object properties are not overridden or
-      // used as an attack vector.
-      // We also assume that `Object.create(null)` is available when the event name
-      // is an ES6 Symbol.
-      //
-
-      var prefix = typeof Object.create !== 'function' ? '~' : false;
-
-      /**
-       * Representation of a single EventEmitter function.
-       *
-       * @param {Function} fn Event handler to be called.
-       * @param {Mixed} context Context for function execution.
-       * @param {Boolean} once Only emit once
-       * @api private
-       */
-      function EE(fn, context, once) {
-        this.fn = fn;
-        this.context = context;
-        this.once = once || false;
-      }
-
-      /**
-       * Minimal EventEmitter interface that is molded against the Node.js
-       * EventEmitter interface.
-       *
-       * @constructor
-       * @api public
-       */
-      function EventEmitter() {} /* Nothing to set */
-
-      /**
-       * Holds the assigned EventEmitters by name.
-       *
-       * @type {Object}
-       * @private
-       */
-      EventEmitter.prototype._events = undefined;
-
-      /**
-       * Return a list of assigned event listeners.
-       *
-       * @param {String} event The events that should be listed.
-       * @param {Boolean} exists We only need to know if there are listeners.
-       * @returns {Array|Boolean}
-       * @api public
-       */
-      EventEmitter.prototype.listeners = function listeners(event, exists) {
-        var evt = prefix ? prefix + event : event,
-            available = this._events && this._events[evt];
-
-        if (exists) return !!available;
-        if (!available) return [];
-        if (available.fn) return [available.fn];
-
-        for (var i = 0, l = available.length, ee = new Array(l); i < l; i++) {
-          ee[i] = available[i].fn;
-        }
-
-        return ee;
-      };
-
-      /**
-       * Emit an event to all registered event listeners.
-       *
-       * @param {String} event The name of the event.
-       * @returns {Boolean} Indication if we've emitted an event.
-       * @api public
-       */
-      EventEmitter.prototype.emit = function emit(event, a1, a2, a3, a4, a5) {
-        var evt = prefix ? prefix + event : event;
-
-        if (!this._events || !this._events[evt]) return false;
-
-        var listeners = this._events[evt],
-            len = arguments.length,
-            args,
-            i;
-
-        if ('function' === typeof listeners.fn) {
-          if (listeners.once) this.removeListener(event, listeners.fn, undefined, true);
-
-          switch (len) {
-            case 1:
-              return listeners.fn.call(listeners.context), true;
-            case 2:
-              return listeners.fn.call(listeners.context, a1), true;
-            case 3:
-              return listeners.fn.call(listeners.context, a1, a2), true;
-            case 4:
-              return listeners.fn.call(listeners.context, a1, a2, a3), true;
-            case 5:
-              return listeners.fn.call(listeners.context, a1, a2, a3, a4), true;
-            case 6:
-              return listeners.fn.call(listeners.context, a1, a2, a3, a4, a5), true;
-          }
-
-          for (i = 1, args = new Array(len - 1); i < len; i++) {
-            args[i - 1] = arguments[i];
-          }
-
-          listeners.fn.apply(listeners.context, args);
-        } else {
-          var length = listeners.length,
-              j;
-
-          for (i = 0; i < length; i++) {
-            if (listeners[i].once) this.removeListener(event, listeners[i].fn, undefined, true);
-
-            switch (len) {
-              case 1:
-                listeners[i].fn.call(listeners[i].context);break;
-              case 2:
-                listeners[i].fn.call(listeners[i].context, a1);break;
-              case 3:
-                listeners[i].fn.call(listeners[i].context, a1, a2);break;
-              default:
-                if (!args) for (j = 1, args = new Array(len - 1); j < len; j++) {
-                  args[j - 1] = arguments[j];
-                }
-
-                listeners[i].fn.apply(listeners[i].context, args);
-            }
-          }
-        }
-
-        return true;
-      };
-
-      /**
-       * Register a new EventListener for the given event.
-       *
-       * @param {String} event Name of the event.
-       * @param {Functon} fn Callback function.
-       * @param {Mixed} context The context of the function.
-       * @api public
-       */
-      EventEmitter.prototype.on = function on(event, fn, context) {
-        var listener = new EE(fn, context || this),
-            evt = prefix ? prefix + event : event;
-
-        if (!this._events) this._events = prefix ? {} : Object.create(null);
-        if (!this._events[evt]) this._events[evt] = listener;else {
-          if (!this._events[evt].fn) this._events[evt].push(listener);else this._events[evt] = [this._events[evt], listener];
-        }
-
-        return this;
-      };
-
-      /**
-       * Add an EventListener that's only called once.
-       *
-       * @param {String} event Name of the event.
-       * @param {Function} fn Callback function.
-       * @param {Mixed} context The context of the function.
-       * @api public
-       */
-      EventEmitter.prototype.once = function once(event, fn, context) {
-        var listener = new EE(fn, context || this, true),
-            evt = prefix ? prefix + event : event;
-
-        if (!this._events) this._events = prefix ? {} : Object.create(null);
-        if (!this._events[evt]) this._events[evt] = listener;else {
-          if (!this._events[evt].fn) this._events[evt].push(listener);else this._events[evt] = [this._events[evt], listener];
-        }
-
-        return this;
-      };
-
-      /**
-       * Remove event listeners.
-       *
-       * @param {String} event The event we want to remove.
-       * @param {Function} fn The listener that we need to find.
-       * @param {Mixed} context Only remove listeners matching this context.
-       * @param {Boolean} once Only remove once listeners.
-       * @api public
-       */
-      EventEmitter.prototype.removeListener = function removeListener(event, fn, context, once) {
-        var evt = prefix ? prefix + event : event;
-
-        if (!this._events || !this._events[evt]) return this;
-
-        var listeners = this._events[evt],
-            events = [];
-
-        if (fn) {
-          if (listeners.fn) {
-            if (listeners.fn !== fn || once && !listeners.once || context && listeners.context !== context) {
-              events.push(listeners);
-            }
-          } else {
-            for (var i = 0, length = listeners.length; i < length; i++) {
-              if (listeners[i].fn !== fn || once && !listeners[i].once || context && listeners[i].context !== context) {
-                events.push(listeners[i]);
-              }
-            }
-          }
-        }
-
-        //
-        // Reset the array, or remove it completely if we have no more listeners.
-        //
-        if (events.length) {
-          this._events[evt] = events.length === 1 ? events[0] : events;
-        } else {
-          delete this._events[evt];
-        }
-
-        return this;
-      };
-
-      /**
-       * Remove all listeners or only the listeners for the specified event.
-       *
-       * @param {String} event The event want to remove all listeners for.
-       * @api public
-       */
-      EventEmitter.prototype.removeAllListeners = function removeAllListeners(event) {
-        if (!this._events) return this;
-
-        if (event) delete this._events[prefix ? prefix + event : event];else this._events = prefix ? {} : Object.create(null);
-
-        return this;
-      };
-
-      //
-      // Alias methods names because people roll like that.
-      //
-      EventEmitter.prototype.off = EventEmitter.prototype.removeListener;
-      EventEmitter.prototype.addListener = EventEmitter.prototype.on;
-
-      //
-      // This function doesn't apply anymore.
-      //
-      EventEmitter.prototype.setMaxListeners = function setMaxListeners() {
-        return this;
-      };
-
-      //
-      // Expose the prefix.
-      //
-      EventEmitter.prefixed = prefix;
-
-      //
-      // Expose the module.
-      //
-      if ('undefined' !== typeof module) {
-        module.exports = EventEmitter;
-      }
-    }, {}], "Web3PromiEvent": [function (require, module, exports) {
+    }, { "buffer": 4 }], "Web3PromiEvent": [function (require, module, exports) {
       /*
        This file is part of web3.js.
       
@@ -3824,6 +3903,6 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
       };
 
       module.exports = PromiEvent;
-    }, { "any-promise": 2, "eventemitter3": 5 }] }, {}, ["Web3PromiEvent"])("Web3PromiEvent");
+    }, { "any-promise": 1, "eventemitter3": 5 }] }, {}, ["Web3PromiEvent"])("Web3PromiEvent");
 });
 //# sourceMappingURL=web3-core-promievent.js.map

@@ -33,7 +33,4112 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
         o(t[i]);
       }return o;
     }return r;
-  }()({ "BN": [function (require, module, exports) {
+  }()({ 1: [function (require, module, exports) {}, {}], 2: [function (require, module, exports) {
+      'use strict';
+
+      var token = '%[a-f0-9]{2}';
+      var singleMatcher = new RegExp(token, 'gi');
+      var multiMatcher = new RegExp('(' + token + ')+', 'gi');
+
+      function decodeComponents(components, split) {
+        try {
+          // Try to decode the entire string first
+          return decodeURIComponent(components.join(''));
+        } catch (err) {
+          // Do nothing
+        }
+
+        if (components.length === 1) {
+          return components;
+        }
+
+        split = split || 1;
+
+        // Split the array in 2 parts
+        var left = components.slice(0, split);
+        var right = components.slice(split);
+
+        return Array.prototype.concat.call([], decodeComponents(left), decodeComponents(right));
+      }
+
+      function decode(input) {
+        try {
+          return decodeURIComponent(input);
+        } catch (err) {
+          var tokens = input.match(singleMatcher);
+
+          for (var i = 1; i < tokens.length; i++) {
+            input = decodeComponents(tokens, i).join('');
+
+            tokens = input.match(singleMatcher);
+          }
+
+          return input;
+        }
+      }
+
+      function customDecodeURIComponent(input) {
+        // Keep track of all the replacements and prefill the map with the `BOM`
+        var replaceMap = {
+          '%FE%FF': "\uFFFD\uFFFD",
+          '%FF%FE': "\uFFFD\uFFFD"
+        };
+
+        var match = multiMatcher.exec(input);
+        while (match) {
+          try {
+            // Decode as big chunks as possible
+            replaceMap[match[0]] = decodeURIComponent(match[0]);
+          } catch (err) {
+            var result = decode(match[0]);
+
+            if (result !== match[0]) {
+              replaceMap[match[0]] = result;
+            }
+          }
+
+          match = multiMatcher.exec(input);
+        }
+
+        // Add `%C2` at the end of the map to make sure it does not replace the combinator before everything else
+        replaceMap['%C2'] = "\uFFFD";
+
+        var entries = Object.keys(replaceMap);
+
+        for (var i = 0; i < entries.length; i++) {
+          // Replace all decoded components
+          var key = entries[i];
+          input = input.replace(new RegExp(key, 'g'), replaceMap[key]);
+        }
+
+        return input;
+      }
+
+      module.exports = function (encodedURI) {
+        if (typeof encodedURI !== 'string') {
+          throw new TypeError('Expected `encodedURI` to be of type `string`, got `' + (typeof encodedURI === "undefined" ? "undefined" : _typeof(encodedURI)) + '`');
+        }
+
+        try {
+          encodedURI = encodedURI.replace(/\+/g, ' ');
+
+          // Try the built in decoder first
+          return decodeURIComponent(encodedURI);
+        } catch (err) {
+          // Fallback to a more advanced decoder
+          return customDecodeURIComponent(encodedURI);
+        }
+      };
+    }, {}], 3: [function (require, module, exports) {
+      var generate = function generate(num, fn) {
+        var a = [];
+        for (var i = 0; i < num; ++i) {
+          a.push(fn(i));
+        }return a;
+      };
+
+      var replicate = function replicate(num, val) {
+        return generate(num, function () {
+          return val;
+        });
+      };
+
+      var concat = function concat(a, b) {
+        return a.concat(b);
+      };
+
+      var flatten = function flatten(a) {
+        var r = [];
+        for (var j = 0, J = a.length; j < J; ++j) {
+          for (var i = 0, I = a[j].length; i < I; ++i) {
+            r.push(a[j][i]);
+          }
+        }return r;
+      };
+
+      var chunksOf = function chunksOf(n, a) {
+        var b = [];
+        for (var i = 0, l = a.length; i < l; i += n) {
+          b.push(a.slice(i, i + n));
+        }return b;
+      };
+
+      module.exports = {
+        generate: generate,
+        replicate: replicate,
+        concat: concat,
+        flatten: flatten,
+        chunksOf: chunksOf
+      };
+    }, {}], 4: [function (require, module, exports) {
+      var A = require("./array.js");
+
+      var at = function at(bytes, index) {
+        return parseInt(bytes.slice(index * 2 + 2, index * 2 + 4), 16);
+      };
+
+      var random = function random(bytes) {
+        var rnd = void 0;
+        if (typeof window !== "undefined" && window.crypto && window.crypto.getRandomValues) rnd = window.crypto.getRandomValues(new Uint8Array(bytes));else if (typeof require !== "undefined") rnd = require("c" + "rypto").randomBytes(bytes);else throw "Safe random numbers not available.";
+        var hex = "0x";
+        for (var i = 0; i < bytes; ++i) {
+          hex += ("00" + rnd[i].toString(16)).slice(-2);
+        }return hex;
+      };
+
+      var length = function length(a) {
+        return (a.length - 2) / 2;
+      };
+
+      var flatten = function flatten(a) {
+        return "0x" + a.reduce(function (r, s) {
+          return r + s.slice(2);
+        }, "");
+      };
+
+      var slice = function slice(i, j, bs) {
+        return "0x" + bs.slice(i * 2 + 2, j * 2 + 2);
+      };
+
+      var reverse = function reverse(hex) {
+        var rev = "0x";
+        for (var i = 0, l = length(hex); i < l; ++i) {
+          rev += hex.slice((l - i) * 2, (l - i + 1) * 2);
+        }
+        return rev;
+      };
+
+      var pad = function pad(l, hex) {
+        return hex.length === l * 2 + 2 ? hex : pad(l, "0x" + "0" + hex.slice(2));
+      };
+
+      var padRight = function padRight(l, hex) {
+        return hex.length === l * 2 + 2 ? hex : padRight(l, hex + "0");
+      };
+
+      var toArray = function toArray(hex) {
+        var arr = [];
+        for (var i = 2, l = hex.length; i < l; i += 2) {
+          arr.push(parseInt(hex.slice(i, i + 2), 16));
+        }return arr;
+      };
+
+      var fromArray = function fromArray(arr) {
+        var hex = "0x";
+        for (var i = 0, l = arr.length; i < l; ++i) {
+          var b = arr[i];
+          hex += (b < 16 ? "0" : "") + b.toString(16);
+        }
+        return hex;
+      };
+
+      var toUint8Array = function toUint8Array(hex) {
+        return new Uint8Array(toArray(hex));
+      };
+
+      var fromUint8Array = function fromUint8Array(arr) {
+        return fromArray([].slice.call(arr, 0));
+      };
+
+      var fromNumber = function fromNumber(num) {
+        var hex = num.toString(16);
+        return hex.length % 2 === 0 ? "0x" + hex : "0x0" + hex;
+      };
+
+      var toNumber = function toNumber(hex) {
+        return parseInt(hex.slice(2), 16);
+      };
+
+      var concat = function concat(a, b) {
+        return a.concat(b.slice(2));
+      };
+
+      var fromNat = function fromNat(bn) {
+        return bn === "0x0" ? "0x" : bn.length % 2 === 0 ? bn : "0x0" + bn.slice(2);
+      };
+
+      var toNat = function toNat(bn) {
+        return bn[2] === "0" ? "0x" + bn.slice(3) : bn;
+      };
+
+      var fromAscii = function fromAscii(ascii) {
+        var hex = "0x";
+        for (var i = 0; i < ascii.length; ++i) {
+          hex += ("00" + ascii.charCodeAt(i).toString(16)).slice(-2);
+        }return hex;
+      };
+
+      var toAscii = function toAscii(hex) {
+        var ascii = "";
+        for (var i = 2; i < hex.length; i += 2) {
+          ascii += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+        }return ascii;
+      };
+
+      // From https://gist.github.com/pascaldekloe/62546103a1576803dade9269ccf76330
+      var fromString = function fromString(s) {
+        var makeByte = function makeByte(uint8) {
+          var b = uint8.toString(16);
+          return b.length < 2 ? "0" + b : b;
+        };
+        var bytes = "0x";
+        for (var ci = 0; ci != s.length; ci++) {
+          var c = s.charCodeAt(ci);
+          if (c < 128) {
+            bytes += makeByte(c);
+            continue;
+          }
+          if (c < 2048) {
+            bytes += makeByte(c >> 6 | 192);
+          } else {
+            if (c > 0xd7ff && c < 0xdc00) {
+              if (++ci == s.length) return null;
+              var c2 = s.charCodeAt(ci);
+              if (c2 < 0xdc00 || c2 > 0xdfff) return null;
+              c = 0x10000 + ((c & 0x03ff) << 10) + (c2 & 0x03ff);
+              bytes += makeByte(c >> 18 | 240);
+              bytes += makeByte(c >> 12 & 63 | 128);
+            } else {
+              // c <= 0xffff
+              bytes += makeByte(c >> 12 | 224);
+            }
+            bytes += makeByte(c >> 6 & 63 | 128);
+          }
+          bytes += makeByte(c & 63 | 128);
+        }
+        return bytes;
+      };
+
+      var toString = function toString(bytes) {
+        var s = '';
+        var i = 0;
+        var l = length(bytes);
+        while (i < l) {
+          var c = at(bytes, i++);
+          if (c > 127) {
+            if (c > 191 && c < 224) {
+              if (i >= l) return null;
+              c = (c & 31) << 6 | at(bytes, i) & 63;
+            } else if (c > 223 && c < 240) {
+              if (i + 1 >= l) return null;
+              c = (c & 15) << 12 | (at(bytes, i) & 63) << 6 | at(bytes, ++i) & 63;
+            } else if (c > 239 && c < 248) {
+              if (i + 2 >= l) return null;
+              c = (c & 7) << 18 | (at(bytes, i) & 63) << 12 | (at(bytes, ++i) & 63) << 6 | at(bytes, ++i) & 63;
+            } else return null;
+            ++i;
+          }
+          if (c <= 0xffff) s += String.fromCharCode(c);else if (c <= 0x10ffff) {
+            c -= 0x10000;
+            s += String.fromCharCode(c >> 10 | 0xd800);
+            s += String.fromCharCode(c & 0x3FF | 0xdc00);
+          } else return null;
+        }
+        return s;
+      };
+
+      module.exports = {
+        random: random,
+        length: length,
+        concat: concat,
+        flatten: flatten,
+        slice: slice,
+        reverse: reverse,
+        pad: pad,
+        padRight: padRight,
+        fromAscii: fromAscii,
+        toAscii: toAscii,
+        fromString: fromString,
+        toString: toString,
+        fromNumber: fromNumber,
+        toNumber: toNumber,
+        fromNat: fromNat,
+        toNat: toNat,
+        fromArray: fromArray,
+        toArray: toArray,
+        fromUint8Array: fromUint8Array,
+        toUint8Array: toUint8Array
+      };
+    }, { "./array.js": 3 }], 5: [function (require, module, exports) {
+      // This was ported from https://github.com/emn178/js-sha3, with some minor
+      // modifications and pruning. It is licensed under MIT:
+      //
+      // Copyright 2015-2016 Chen, Yi-Cyuan
+      //  
+      // Permission is hereby granted, free of charge, to any person obtaining
+      // a copy of this software and associated documentation files (the
+      // "Software"), to deal in the Software without restriction, including
+      // without limitation the rights to use, copy, modify, merge, publish,
+      // distribute, sublicense, and/or sell copies of the Software, and to
+      // permit persons to whom the Software is furnished to do so, subject to
+      // the following conditions:
+      // 
+      // The above copyright notice and this permission notice shall be
+      // included in all copies or substantial portions of the Software.
+      // 
+      // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+      // EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+      // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+      // NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+      // LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+      // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+      // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+      var HEX_CHARS = '0123456789abcdef'.split('');
+      var KECCAK_PADDING = [1, 256, 65536, 16777216];
+      var SHIFT = [0, 8, 16, 24];
+      var RC = [1, 0, 32898, 0, 32906, 2147483648, 2147516416, 2147483648, 32907, 0, 2147483649, 0, 2147516545, 2147483648, 32777, 2147483648, 138, 0, 136, 0, 2147516425, 0, 2147483658, 0, 2147516555, 0, 139, 2147483648, 32905, 2147483648, 32771, 2147483648, 32770, 2147483648, 128, 2147483648, 32778, 0, 2147483658, 2147483648, 2147516545, 2147483648, 32896, 2147483648, 2147483649, 0, 2147516424, 2147483648];
+
+      var Keccak = function Keccak(bits) {
+        return {
+          blocks: [],
+          reset: true,
+          block: 0,
+          start: 0,
+          blockCount: 1600 - (bits << 1) >> 5,
+          outputBlocks: bits >> 5,
+          s: function (s) {
+            return [].concat(s, s, s, s, s);
+          }([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        };
+      };
+
+      var update = function update(state, message) {
+        var length = message.length,
+            blocks = state.blocks,
+            byteCount = state.blockCount << 2,
+            blockCount = state.blockCount,
+            outputBlocks = state.outputBlocks,
+            s = state.s,
+            index = 0,
+            i,
+            code;
+
+        // update
+        while (index < length) {
+          if (state.reset) {
+            state.reset = false;
+            blocks[0] = state.block;
+            for (i = 1; i < blockCount + 1; ++i) {
+              blocks[i] = 0;
+            }
+          }
+          if (typeof message !== "string") {
+            for (i = state.start; index < length && i < byteCount; ++index) {
+              blocks[i >> 2] |= message[index] << SHIFT[i++ & 3];
+            }
+          } else {
+            for (i = state.start; index < length && i < byteCount; ++index) {
+              code = message.charCodeAt(index);
+              if (code < 0x80) {
+                blocks[i >> 2] |= code << SHIFT[i++ & 3];
+              } else if (code < 0x800) {
+                blocks[i >> 2] |= (0xc0 | code >> 6) << SHIFT[i++ & 3];
+                blocks[i >> 2] |= (0x80 | code & 0x3f) << SHIFT[i++ & 3];
+              } else if (code < 0xd800 || code >= 0xe000) {
+                blocks[i >> 2] |= (0xe0 | code >> 12) << SHIFT[i++ & 3];
+                blocks[i >> 2] |= (0x80 | code >> 6 & 0x3f) << SHIFT[i++ & 3];
+                blocks[i >> 2] |= (0x80 | code & 0x3f) << SHIFT[i++ & 3];
+              } else {
+                code = 0x10000 + ((code & 0x3ff) << 10 | message.charCodeAt(++index) & 0x3ff);
+                blocks[i >> 2] |= (0xf0 | code >> 18) << SHIFT[i++ & 3];
+                blocks[i >> 2] |= (0x80 | code >> 12 & 0x3f) << SHIFT[i++ & 3];
+                blocks[i >> 2] |= (0x80 | code >> 6 & 0x3f) << SHIFT[i++ & 3];
+                blocks[i >> 2] |= (0x80 | code & 0x3f) << SHIFT[i++ & 3];
+              }
+            }
+          }
+          state.lastByteIndex = i;
+          if (i >= byteCount) {
+            state.start = i - byteCount;
+            state.block = blocks[blockCount];
+            for (i = 0; i < blockCount; ++i) {
+              s[i] ^= blocks[i];
+            }
+            f(s);
+            state.reset = true;
+          } else {
+            state.start = i;
+          }
+        }
+
+        // finalize
+        i = state.lastByteIndex;
+        blocks[i >> 2] |= KECCAK_PADDING[i & 3];
+        if (state.lastByteIndex === byteCount) {
+          blocks[0] = blocks[blockCount];
+          for (i = 1; i < blockCount + 1; ++i) {
+            blocks[i] = 0;
+          }
+        }
+        blocks[blockCount - 1] |= 0x80000000;
+        for (i = 0; i < blockCount; ++i) {
+          s[i] ^= blocks[i];
+        }
+        f(s);
+
+        // toString
+        var hex = '',
+            i = 0,
+            j = 0,
+            block;
+        while (j < outputBlocks) {
+          for (i = 0; i < blockCount && j < outputBlocks; ++i, ++j) {
+            block = s[i];
+            hex += HEX_CHARS[block >> 4 & 0x0F] + HEX_CHARS[block & 0x0F] + HEX_CHARS[block >> 12 & 0x0F] + HEX_CHARS[block >> 8 & 0x0F] + HEX_CHARS[block >> 20 & 0x0F] + HEX_CHARS[block >> 16 & 0x0F] + HEX_CHARS[block >> 28 & 0x0F] + HEX_CHARS[block >> 24 & 0x0F];
+          }
+          if (j % blockCount === 0) {
+            f(s);
+            i = 0;
+          }
+        }
+        return "0x" + hex;
+      };
+
+      var f = function f(s) {
+        var h, l, n, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32, b33, b34, b35, b36, b37, b38, b39, b40, b41, b42, b43, b44, b45, b46, b47, b48, b49;
+
+        for (n = 0; n < 48; n += 2) {
+          c0 = s[0] ^ s[10] ^ s[20] ^ s[30] ^ s[40];
+          c1 = s[1] ^ s[11] ^ s[21] ^ s[31] ^ s[41];
+          c2 = s[2] ^ s[12] ^ s[22] ^ s[32] ^ s[42];
+          c3 = s[3] ^ s[13] ^ s[23] ^ s[33] ^ s[43];
+          c4 = s[4] ^ s[14] ^ s[24] ^ s[34] ^ s[44];
+          c5 = s[5] ^ s[15] ^ s[25] ^ s[35] ^ s[45];
+          c6 = s[6] ^ s[16] ^ s[26] ^ s[36] ^ s[46];
+          c7 = s[7] ^ s[17] ^ s[27] ^ s[37] ^ s[47];
+          c8 = s[8] ^ s[18] ^ s[28] ^ s[38] ^ s[48];
+          c9 = s[9] ^ s[19] ^ s[29] ^ s[39] ^ s[49];
+
+          h = c8 ^ (c2 << 1 | c3 >>> 31);
+          l = c9 ^ (c3 << 1 | c2 >>> 31);
+          s[0] ^= h;
+          s[1] ^= l;
+          s[10] ^= h;
+          s[11] ^= l;
+          s[20] ^= h;
+          s[21] ^= l;
+          s[30] ^= h;
+          s[31] ^= l;
+          s[40] ^= h;
+          s[41] ^= l;
+          h = c0 ^ (c4 << 1 | c5 >>> 31);
+          l = c1 ^ (c5 << 1 | c4 >>> 31);
+          s[2] ^= h;
+          s[3] ^= l;
+          s[12] ^= h;
+          s[13] ^= l;
+          s[22] ^= h;
+          s[23] ^= l;
+          s[32] ^= h;
+          s[33] ^= l;
+          s[42] ^= h;
+          s[43] ^= l;
+          h = c2 ^ (c6 << 1 | c7 >>> 31);
+          l = c3 ^ (c7 << 1 | c6 >>> 31);
+          s[4] ^= h;
+          s[5] ^= l;
+          s[14] ^= h;
+          s[15] ^= l;
+          s[24] ^= h;
+          s[25] ^= l;
+          s[34] ^= h;
+          s[35] ^= l;
+          s[44] ^= h;
+          s[45] ^= l;
+          h = c4 ^ (c8 << 1 | c9 >>> 31);
+          l = c5 ^ (c9 << 1 | c8 >>> 31);
+          s[6] ^= h;
+          s[7] ^= l;
+          s[16] ^= h;
+          s[17] ^= l;
+          s[26] ^= h;
+          s[27] ^= l;
+          s[36] ^= h;
+          s[37] ^= l;
+          s[46] ^= h;
+          s[47] ^= l;
+          h = c6 ^ (c0 << 1 | c1 >>> 31);
+          l = c7 ^ (c1 << 1 | c0 >>> 31);
+          s[8] ^= h;
+          s[9] ^= l;
+          s[18] ^= h;
+          s[19] ^= l;
+          s[28] ^= h;
+          s[29] ^= l;
+          s[38] ^= h;
+          s[39] ^= l;
+          s[48] ^= h;
+          s[49] ^= l;
+
+          b0 = s[0];
+          b1 = s[1];
+          b32 = s[11] << 4 | s[10] >>> 28;
+          b33 = s[10] << 4 | s[11] >>> 28;
+          b14 = s[20] << 3 | s[21] >>> 29;
+          b15 = s[21] << 3 | s[20] >>> 29;
+          b46 = s[31] << 9 | s[30] >>> 23;
+          b47 = s[30] << 9 | s[31] >>> 23;
+          b28 = s[40] << 18 | s[41] >>> 14;
+          b29 = s[41] << 18 | s[40] >>> 14;
+          b20 = s[2] << 1 | s[3] >>> 31;
+          b21 = s[3] << 1 | s[2] >>> 31;
+          b2 = s[13] << 12 | s[12] >>> 20;
+          b3 = s[12] << 12 | s[13] >>> 20;
+          b34 = s[22] << 10 | s[23] >>> 22;
+          b35 = s[23] << 10 | s[22] >>> 22;
+          b16 = s[33] << 13 | s[32] >>> 19;
+          b17 = s[32] << 13 | s[33] >>> 19;
+          b48 = s[42] << 2 | s[43] >>> 30;
+          b49 = s[43] << 2 | s[42] >>> 30;
+          b40 = s[5] << 30 | s[4] >>> 2;
+          b41 = s[4] << 30 | s[5] >>> 2;
+          b22 = s[14] << 6 | s[15] >>> 26;
+          b23 = s[15] << 6 | s[14] >>> 26;
+          b4 = s[25] << 11 | s[24] >>> 21;
+          b5 = s[24] << 11 | s[25] >>> 21;
+          b36 = s[34] << 15 | s[35] >>> 17;
+          b37 = s[35] << 15 | s[34] >>> 17;
+          b18 = s[45] << 29 | s[44] >>> 3;
+          b19 = s[44] << 29 | s[45] >>> 3;
+          b10 = s[6] << 28 | s[7] >>> 4;
+          b11 = s[7] << 28 | s[6] >>> 4;
+          b42 = s[17] << 23 | s[16] >>> 9;
+          b43 = s[16] << 23 | s[17] >>> 9;
+          b24 = s[26] << 25 | s[27] >>> 7;
+          b25 = s[27] << 25 | s[26] >>> 7;
+          b6 = s[36] << 21 | s[37] >>> 11;
+          b7 = s[37] << 21 | s[36] >>> 11;
+          b38 = s[47] << 24 | s[46] >>> 8;
+          b39 = s[46] << 24 | s[47] >>> 8;
+          b30 = s[8] << 27 | s[9] >>> 5;
+          b31 = s[9] << 27 | s[8] >>> 5;
+          b12 = s[18] << 20 | s[19] >>> 12;
+          b13 = s[19] << 20 | s[18] >>> 12;
+          b44 = s[29] << 7 | s[28] >>> 25;
+          b45 = s[28] << 7 | s[29] >>> 25;
+          b26 = s[38] << 8 | s[39] >>> 24;
+          b27 = s[39] << 8 | s[38] >>> 24;
+          b8 = s[48] << 14 | s[49] >>> 18;
+          b9 = s[49] << 14 | s[48] >>> 18;
+
+          s[0] = b0 ^ ~b2 & b4;
+          s[1] = b1 ^ ~b3 & b5;
+          s[10] = b10 ^ ~b12 & b14;
+          s[11] = b11 ^ ~b13 & b15;
+          s[20] = b20 ^ ~b22 & b24;
+          s[21] = b21 ^ ~b23 & b25;
+          s[30] = b30 ^ ~b32 & b34;
+          s[31] = b31 ^ ~b33 & b35;
+          s[40] = b40 ^ ~b42 & b44;
+          s[41] = b41 ^ ~b43 & b45;
+          s[2] = b2 ^ ~b4 & b6;
+          s[3] = b3 ^ ~b5 & b7;
+          s[12] = b12 ^ ~b14 & b16;
+          s[13] = b13 ^ ~b15 & b17;
+          s[22] = b22 ^ ~b24 & b26;
+          s[23] = b23 ^ ~b25 & b27;
+          s[32] = b32 ^ ~b34 & b36;
+          s[33] = b33 ^ ~b35 & b37;
+          s[42] = b42 ^ ~b44 & b46;
+          s[43] = b43 ^ ~b45 & b47;
+          s[4] = b4 ^ ~b6 & b8;
+          s[5] = b5 ^ ~b7 & b9;
+          s[14] = b14 ^ ~b16 & b18;
+          s[15] = b15 ^ ~b17 & b19;
+          s[24] = b24 ^ ~b26 & b28;
+          s[25] = b25 ^ ~b27 & b29;
+          s[34] = b34 ^ ~b36 & b38;
+          s[35] = b35 ^ ~b37 & b39;
+          s[44] = b44 ^ ~b46 & b48;
+          s[45] = b45 ^ ~b47 & b49;
+          s[6] = b6 ^ ~b8 & b0;
+          s[7] = b7 ^ ~b9 & b1;
+          s[16] = b16 ^ ~b18 & b10;
+          s[17] = b17 ^ ~b19 & b11;
+          s[26] = b26 ^ ~b28 & b20;
+          s[27] = b27 ^ ~b29 & b21;
+          s[36] = b36 ^ ~b38 & b30;
+          s[37] = b37 ^ ~b39 & b31;
+          s[46] = b46 ^ ~b48 & b40;
+          s[47] = b47 ^ ~b49 & b41;
+          s[8] = b8 ^ ~b0 & b2;
+          s[9] = b9 ^ ~b1 & b3;
+          s[18] = b18 ^ ~b10 & b12;
+          s[19] = b19 ^ ~b11 & b13;
+          s[28] = b28 ^ ~b20 & b22;
+          s[29] = b29 ^ ~b21 & b23;
+          s[38] = b38 ^ ~b30 & b32;
+          s[39] = b39 ^ ~b31 & b33;
+          s[48] = b48 ^ ~b40 & b42;
+          s[49] = b49 ^ ~b41 & b43;
+
+          s[0] ^= RC[n];
+          s[1] ^= RC[n + 1];
+        }
+      };
+
+      var keccak = function keccak(bits) {
+        return function (str) {
+          var msg;
+          if (str.slice(0, 2) === "0x") {
+            msg = [];
+            for (var i = 2, l = str.length; i < l; i += 2) {
+              msg.push(parseInt(str.slice(i, i + 2), 16));
+            }
+          } else {
+            msg = str;
+          }
+          return update(Keccak(bits, bits), msg);
+        };
+      };
+
+      module.exports = {
+        keccak256: keccak(256),
+        keccak512: keccak(512),
+        keccak256s: keccak(256),
+        keccak512s: keccak(512)
+      };
+    }, {}], 6: [function (require, module, exports) {
+      'use strict';
+
+      var isCallable = require('is-callable');
+
+      var toStr = Object.prototype.toString;
+      var hasOwnProperty = Object.prototype.hasOwnProperty;
+
+      var forEachArray = function forEachArray(array, iterator, receiver) {
+        for (var i = 0, len = array.length; i < len; i++) {
+          if (hasOwnProperty.call(array, i)) {
+            if (receiver == null) {
+              iterator(array[i], i, array);
+            } else {
+              iterator.call(receiver, array[i], i, array);
+            }
+          }
+        }
+      };
+
+      var forEachString = function forEachString(string, iterator, receiver) {
+        for (var i = 0, len = string.length; i < len; i++) {
+          // no such thing as a sparse string.
+          if (receiver == null) {
+            iterator(string.charAt(i), i, string);
+          } else {
+            iterator.call(receiver, string.charAt(i), i, string);
+          }
+        }
+      };
+
+      var forEachObject = function forEachObject(object, iterator, receiver) {
+        for (var k in object) {
+          if (hasOwnProperty.call(object, k)) {
+            if (receiver == null) {
+              iterator(object[k], k, object);
+            } else {
+              iterator.call(receiver, object[k], k, object);
+            }
+          }
+        }
+      };
+
+      var forEach = function forEach(list, iterator, thisArg) {
+        if (!isCallable(iterator)) {
+          throw new TypeError('iterator must be a function');
+        }
+
+        var receiver;
+        if (arguments.length >= 3) {
+          receiver = thisArg;
+        }
+
+        if (toStr.call(list) === '[object Array]') {
+          forEachArray(list, iterator, receiver);
+        } else if (typeof list === 'string') {
+          forEachString(list, iterator, receiver);
+        } else {
+          forEachObject(list, iterator, receiver);
+        }
+      };
+
+      module.exports = forEach;
+    }, { "is-callable": 8 }], 7: [function (require, module, exports) {
+      (function (global) {
+        var win;
+
+        if (typeof window !== "undefined") {
+          win = window;
+        } else if (typeof global !== "undefined") {
+          win = global;
+        } else if (typeof self !== "undefined") {
+          win = self;
+        } else {
+          win = {};
+        }
+
+        module.exports = win;
+      }).call(this, typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {});
+    }, {}], 8: [function (require, module, exports) {
+      'use strict';
+
+      var fnToStr = Function.prototype.toString;
+
+      var constructorRegex = /^\s*class\b/;
+      var isES6ClassFn = function isES6ClassFunction(value) {
+        try {
+          var fnStr = fnToStr.call(value);
+          return constructorRegex.test(fnStr);
+        } catch (e) {
+          return false; // not a function
+        }
+      };
+
+      var tryFunctionObject = function tryFunctionToStr(value) {
+        try {
+          if (isES6ClassFn(value)) {
+            return false;
+          }
+          fnToStr.call(value);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      };
+      var toStr = Object.prototype.toString;
+      var fnClass = '[object Function]';
+      var genClass = '[object GeneratorFunction]';
+      var hasToStringTag = typeof Symbol === 'function' && _typeof(Symbol.toStringTag) === 'symbol';
+
+      module.exports = function isCallable(value) {
+        if (!value) {
+          return false;
+        }
+        if (typeof value !== 'function' && (typeof value === "undefined" ? "undefined" : _typeof(value)) !== 'object') {
+          return false;
+        }
+        if (typeof value === 'function' && !value.prototype) {
+          return true;
+        }
+        if (hasToStringTag) {
+          return tryFunctionObject(value);
+        }
+        if (isES6ClassFn(value)) {
+          return false;
+        }
+        var strClass = toStr.call(value);
+        return strClass === fnClass || strClass === genClass;
+      };
+    }, {}], 9: [function (require, module, exports) {
+      module.exports = isFunction;
+
+      var toString = Object.prototype.toString;
+
+      function isFunction(fn) {
+        var string = toString.call(fn);
+        return string === '[object Function]' || typeof fn === 'function' && string !== '[object RegExp]' || typeof window !== 'undefined' && (
+        // IE8 and below
+        fn === window.setTimeout || fn === window.alert || fn === window.confirm || fn === window.prompt);
+      };
+    }, {}], 10: [function (require, module, exports) {
+      /*
+      object-assign
+      (c) Sindre Sorhus
+      @license MIT
+      */
+
+      'use strict';
+      /* eslint-disable no-unused-vars */
+
+      var getOwnPropertySymbols = Object.getOwnPropertySymbols;
+      var hasOwnProperty = Object.prototype.hasOwnProperty;
+      var propIsEnumerable = Object.prototype.propertyIsEnumerable;
+
+      function toObject(val) {
+        if (val === null || val === undefined) {
+          throw new TypeError('Object.assign cannot be called with null or undefined');
+        }
+
+        return Object(val);
+      }
+
+      function shouldUseNative() {
+        try {
+          if (!Object.assign) {
+            return false;
+          }
+
+          // Detect buggy property enumeration order in older V8 versions.
+
+          // https://bugs.chromium.org/p/v8/issues/detail?id=4118
+          var test1 = new String('abc'); // eslint-disable-line no-new-wrappers
+          test1[5] = 'de';
+          if (Object.getOwnPropertyNames(test1)[0] === '5') {
+            return false;
+          }
+
+          // https://bugs.chromium.org/p/v8/issues/detail?id=3056
+          var test2 = {};
+          for (var i = 0; i < 10; i++) {
+            test2['_' + String.fromCharCode(i)] = i;
+          }
+          var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
+            return test2[n];
+          });
+          if (order2.join('') !== '0123456789') {
+            return false;
+          }
+
+          // https://bugs.chromium.org/p/v8/issues/detail?id=3056
+          var test3 = {};
+          'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
+            test3[letter] = letter;
+          });
+          if (Object.keys(Object.assign({}, test3)).join('') !== 'abcdefghijklmnopqrst') {
+            return false;
+          }
+
+          return true;
+        } catch (err) {
+          // We don't expect any of the above to throw, but better to be safe.
+          return false;
+        }
+      }
+
+      module.exports = shouldUseNative() ? Object.assign : function (target, source) {
+        var from;
+        var to = toObject(target);
+        var symbols;
+
+        for (var s = 1; s < arguments.length; s++) {
+          from = Object(arguments[s]);
+
+          for (var key in from) {
+            if (hasOwnProperty.call(from, key)) {
+              to[key] = from[key];
+            }
+          }
+
+          if (getOwnPropertySymbols) {
+            symbols = getOwnPropertySymbols(from);
+            for (var i = 0; i < symbols.length; i++) {
+              if (propIsEnumerable.call(from, symbols[i])) {
+                to[symbols[i]] = from[symbols[i]];
+              }
+            }
+          }
+        }
+
+        return to;
+      };
+    }, {}], 11: [function (require, module, exports) {
+      var trim = require('trim'),
+          forEach = require('for-each'),
+          isArray = function isArray(arg) {
+        return Object.prototype.toString.call(arg) === '[object Array]';
+      };
+
+      module.exports = function (headers) {
+        if (!headers) return {};
+
+        var result = {};
+
+        forEach(trim(headers).split('\n'), function (row) {
+          var index = row.indexOf(':'),
+              key = trim(row.slice(0, index)).toLowerCase(),
+              value = trim(row.slice(index + 1));
+
+          if (typeof result[key] === 'undefined') {
+            result[key] = value;
+          } else if (isArray(result[key])) {
+            result[key].push(value);
+          } else {
+            result[key] = [result[key], value];
+          }
+        });
+
+        return result;
+      };
+    }, { "for-each": 6, "trim": 18 }], 12: [function (require, module, exports) {
+      'use strict';
+
+      var strictUriEncode = require('strict-uri-encode');
+      var objectAssign = require('object-assign');
+      var decodeComponent = require('decode-uri-component');
+
+      function encoderForArrayFormat(opts) {
+        switch (opts.arrayFormat) {
+          case 'index':
+            return function (key, value, index) {
+              return value === null ? [encode(key, opts), '[', index, ']'].join('') : [encode(key, opts), '[', encode(index, opts), ']=', encode(value, opts)].join('');
+            };
+
+          case 'bracket':
+            return function (key, value) {
+              return value === null ? encode(key, opts) : [encode(key, opts), '[]=', encode(value, opts)].join('');
+            };
+
+          default:
+            return function (key, value) {
+              return value === null ? encode(key, opts) : [encode(key, opts), '=', encode(value, opts)].join('');
+            };
+        }
+      }
+
+      function parserForArrayFormat(opts) {
+        var result;
+
+        switch (opts.arrayFormat) {
+          case 'index':
+            return function (key, value, accumulator) {
+              result = /\[(\d*)\]$/.exec(key);
+
+              key = key.replace(/\[\d*\]$/, '');
+
+              if (!result) {
+                accumulator[key] = value;
+                return;
+              }
+
+              if (accumulator[key] === undefined) {
+                accumulator[key] = {};
+              }
+
+              accumulator[key][result[1]] = value;
+            };
+
+          case 'bracket':
+            return function (key, value, accumulator) {
+              result = /(\[\])$/.exec(key);
+              key = key.replace(/\[\]$/, '');
+
+              if (!result) {
+                accumulator[key] = value;
+                return;
+              } else if (accumulator[key] === undefined) {
+                accumulator[key] = [value];
+                return;
+              }
+
+              accumulator[key] = [].concat(accumulator[key], value);
+            };
+
+          default:
+            return function (key, value, accumulator) {
+              if (accumulator[key] === undefined) {
+                accumulator[key] = value;
+                return;
+              }
+
+              accumulator[key] = [].concat(accumulator[key], value);
+            };
+        }
+      }
+
+      function encode(value, opts) {
+        if (opts.encode) {
+          return opts.strict ? strictUriEncode(value) : encodeURIComponent(value);
+        }
+
+        return value;
+      }
+
+      function keysSorter(input) {
+        if (Array.isArray(input)) {
+          return input.sort();
+        } else if ((typeof input === "undefined" ? "undefined" : _typeof(input)) === 'object') {
+          return keysSorter(Object.keys(input)).sort(function (a, b) {
+            return Number(a) - Number(b);
+          }).map(function (key) {
+            return input[key];
+          });
+        }
+
+        return input;
+      }
+
+      function extract(str) {
+        var queryStart = str.indexOf('?');
+        if (queryStart === -1) {
+          return '';
+        }
+        return str.slice(queryStart + 1);
+      }
+
+      function parse(str, opts) {
+        opts = objectAssign({ arrayFormat: 'none' }, opts);
+
+        var formatter = parserForArrayFormat(opts);
+
+        // Create an object with no prototype
+        // https://github.com/sindresorhus/query-string/issues/47
+        var ret = Object.create(null);
+
+        if (typeof str !== 'string') {
+          return ret;
+        }
+
+        str = str.trim().replace(/^[?#&]/, '');
+
+        if (!str) {
+          return ret;
+        }
+
+        str.split('&').forEach(function (param) {
+          var parts = param.replace(/\+/g, ' ').split('=');
+          // Firefox (pre 40) decodes `%3D` to `=`
+          // https://github.com/sindresorhus/query-string/pull/37
+          var key = parts.shift();
+          var val = parts.length > 0 ? parts.join('=') : undefined;
+
+          // missing `=` should be `null`:
+          // http://w3.org/TR/2012/WD-url-20120524/#collect-url-parameters
+          val = val === undefined ? null : decodeComponent(val);
+
+          formatter(decodeComponent(key), val, ret);
+        });
+
+        return Object.keys(ret).sort().reduce(function (result, key) {
+          var val = ret[key];
+          if (Boolean(val) && (typeof val === "undefined" ? "undefined" : _typeof(val)) === 'object' && !Array.isArray(val)) {
+            // Sort object keys, not values
+            result[key] = keysSorter(val);
+          } else {
+            result[key] = val;
+          }
+
+          return result;
+        }, Object.create(null));
+      }
+
+      exports.extract = extract;
+      exports.parse = parse;
+
+      exports.stringify = function (obj, opts) {
+        var defaults = {
+          encode: true,
+          strict: true,
+          arrayFormat: 'none'
+        };
+
+        opts = objectAssign(defaults, opts);
+
+        if (opts.sort === false) {
+          opts.sort = function () {};
+        }
+
+        var formatter = encoderForArrayFormat(opts);
+
+        return obj ? Object.keys(obj).sort(opts.sort).map(function (key) {
+          var val = obj[key];
+
+          if (val === undefined) {
+            return '';
+          }
+
+          if (val === null) {
+            return encode(key, opts);
+          }
+
+          if (Array.isArray(val)) {
+            var result = [];
+
+            val.slice().forEach(function (val2) {
+              if (val2 === undefined) {
+                return;
+              }
+
+              result.push(formatter(key, val2, result.length));
+            });
+
+            return result.join('&');
+          }
+
+          return encode(key, opts) + '=' + encode(val, opts);
+        }).filter(function (x) {
+          return x.length > 0;
+        }).join('&') : '';
+      };
+
+      exports.parseUrl = function (str, opts) {
+        return {
+          url: str.split('?')[0] || '',
+          query: parse(extract(str), opts)
+        };
+      };
+    }, { "decode-uri-component": 2, "object-assign": 10, "strict-uri-encode": 13 }], 13: [function (require, module, exports) {
+      'use strict';
+
+      module.exports = function (str) {
+        return encodeURIComponent(str).replace(/[!'()*]/g, function (c) {
+          return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+        });
+      };
+    }, {}], 14: [function (require, module, exports) {
+      var unavailable = function unavailable() {
+        throw "This swarm.js function isn't available on the browser.";
+      };
+
+      var fs = {
+        readFile: unavailable
+      };
+      var files = {
+        download: unavailable,
+        safeDownloadArchived: unavailable,
+        directoryTree: unavailable
+      };
+      var os = {
+        platform: unavailable,
+        arch: unavailable
+      };
+      var path = {
+        join: unavailable,
+        slice: unavailable
+      };
+      var child_process = {
+        spawn: unavailable
+      };
+      var mimetype = {
+        lookup: unavailable
+      };
+      var defaultArchives = {};
+      var downloadUrl = null;
+
+      var request = require("xhr-request-promise");
+
+      var bytes = require("eth-lib/lib/bytes");
+
+      var hash = require("./swarm-hash.js");
+
+      var pick = require("./pick.js");
+
+      var swarm = require("./swarm");
+
+      module.exports = swarm({
+        fs: fs,
+        files: files,
+        os: os,
+        path: path,
+        child_process: child_process,
+        defaultArchives: defaultArchives,
+        mimetype: mimetype,
+        request: request,
+        downloadUrl: downloadUrl,
+        bytes: bytes,
+        hash: hash,
+        pick: pick
+      });
+    }, { "./pick.js": 15, "./swarm": 17, "./swarm-hash.js": 16, "eth-lib/lib/bytes": 4, "xhr-request-promise": 21 }], 15: [function (require, module, exports) {
+      var picker = function picker(type) {
+        return function () {
+          return new Promise(function (resolve, reject) {
+            var fileLoader = function fileLoader(e) {
+              var directory = {};
+              var totalFiles = e.target.files.length;
+              var loadedFiles = 0;
+              [].map.call(e.target.files, function (file) {
+                var reader = new FileReader();
+
+                reader.onload = function (e) {
+                  var data = new Uint8Array(e.target.result);
+
+                  if (type === "directory") {
+                    var path = file.webkitRelativePath;
+                    directory[path.slice(path.indexOf("/") + 1)] = {
+                      type: "text/plain",
+                      data: data
+                    };
+                    if (++loadedFiles === totalFiles) resolve(directory);
+                  } else if (type === "file") {
+                    var _path = file.webkitRelativePath;
+                    resolve({
+                      "type": mimetype.lookup(_path),
+                      "data": data
+                    });
+                  } else {
+                    resolve(data);
+                  }
+                };
+
+                reader.readAsArrayBuffer(file);
+              });
+            };
+
+            var fileInput;
+
+            if (type === "directory") {
+              fileInput = document.createElement("input");
+              fileInput.addEventListener("change", fileLoader);
+              fileInput.type = "file";
+              fileInput.webkitdirectory = true;
+              fileInput.mozdirectory = true;
+              fileInput.msdirectory = true;
+              fileInput.odirectory = true;
+              fileInput.directory = true;
+            } else {
+              fileInput = document.createElement("input");
+              fileInput.addEventListener("change", fileLoader);
+              fileInput.type = "file";
+            }
+
+            ;
+            var mouseEvent = document.createEvent("MouseEvents");
+            mouseEvent.initEvent("click", true, false);
+            fileInput.dispatchEvent(mouseEvent);
+          });
+        };
+      };
+
+      module.exports = {
+        data: picker("data"),
+        file: picker("file"),
+        directory: picker("directory")
+      };
+    }, {}], 16: [function (require, module, exports) {
+      // Thanks https://github.com/axic/swarmhash
+      var keccak = require("eth-lib/lib/hash").keccak256;
+
+      var Bytes = require("eth-lib/lib/bytes");
+
+      var swarmHashBlock = function swarmHashBlock(length, data) {
+        var lengthEncoded = Bytes.reverse(Bytes.pad(6, Bytes.fromNumber(length)));
+        var bytes = Bytes.flatten([lengthEncoded, "0x0000", data]);
+        return keccak(bytes).slice(2);
+      }; // (Bytes | Uint8Array | String) -> String
+
+
+      var swarmHash = function swarmHash(data) {
+        if (typeof data === "string" && data.slice(0, 2) !== "0x") {
+          data = Bytes.fromString(data);
+        } else if (typeof data !== "string" && data.length !== undefined) {
+          data = Bytes.fromUint8Array(data);
+        }
+
+        var length = Bytes.length(data);
+
+        if (length <= 4096) {
+          return swarmHashBlock(length, data);
+        }
+
+        var maxSize = 4096;
+
+        while (maxSize * (4096 / 32) < length) {
+          maxSize *= 4096 / 32;
+        }
+
+        var innerNodes = [];
+
+        for (var i = 0; i < length; i += maxSize) {
+          var size = maxSize < length - i ? maxSize : length - i;
+          innerNodes.push(swarmHash(Bytes.slice(data, i, i + size)));
+        }
+
+        return swarmHashBlock(length, Bytes.flatten(innerNodes));
+      };
+
+      module.exports = swarmHash;
+    }, { "eth-lib/lib/bytes": 4, "eth-lib/lib/hash": 5 }], 17: [function (require, module, exports) {
+      // TODO: this is a temporary fix to hide those libraries from the browser. A
+      // slightly better long-term solution would be to split this file into two,
+      // separating the functions that are used on Node.js from the functions that
+      // are used only on the browser.
+      module.exports = function (_ref) {
+        var fs = _ref.fs,
+            files = _ref.files,
+            os = _ref.os,
+            path = _ref.path,
+            child_process = _ref.child_process,
+            mimetype = _ref.mimetype,
+            defaultArchives = _ref.defaultArchives,
+            request = _ref.request,
+            downloadUrl = _ref.downloadUrl,
+            bytes = _ref.bytes,
+            hash = _ref.hash,
+            pick = _ref.pick;
+
+        // ∀ a . String -> JSON -> Map String a -o Map String a
+        //   Inserts a key/val pair in an object impurely.
+        var impureInsert = function impureInsert(key) {
+          return function (val) {
+            return function (map) {
+              return map[key] = val, map;
+            };
+          };
+        }; // String -> JSON -> Map String JSON
+        //   Merges an array of keys and an array of vals into an object.
+
+
+        var toMap = function toMap(keys) {
+          return function (vals) {
+            var map = {};
+
+            for (var i = 0, l = keys.length; i < l; ++i) {
+              map[keys[i]] = vals[i];
+            }
+
+            return map;
+          };
+        }; // ∀ a . Map String a -> Map String a -> Map String a
+        //   Merges two maps into one.
+
+
+        var merge = function merge(a) {
+          return function (b) {
+            var map = {};
+
+            for (var key in a) {
+              map[key] = a[key];
+            }
+
+            for (var _key in b) {
+              map[_key] = b[_key];
+            }
+
+            return map;
+          };
+        }; // ∀ a . [a] -> [a] -> Bool
+
+
+        var equals = function equals(a) {
+          return function (b) {
+            if (a.length !== b.length) {
+              return false;
+            } else {
+              for (var i = 0, l = a.length; i < l; ++i) {
+                if (a[i] !== b[i]) return false;
+              }
+            }
+
+            return true;
+          };
+        }; // String -> String -> String
+
+
+        var rawUrl = function rawUrl(swarmUrl) {
+          return function (hash) {
+            return "".concat(swarmUrl, "/bzzr:/").concat(hash);
+          };
+        }; // String -> String -> Promise Uint8Array
+        //   Gets the raw contents of a Swarm hash address.
+
+
+        var downloadData = function downloadData(swarmUrl) {
+          return function (hash) {
+            return request(rawUrl(swarmUrl)(hash), {
+              responseType: "arraybuffer"
+            }).then(function (arrayBuffer) {
+              var uint8Array = new Uint8Array(arrayBuffer);
+              var error404 = [52, 48, 52, 32, 112, 97, 103, 101, 32, 110, 111, 116, 32, 102, 111, 117, 110, 100, 10];
+              if (equals(uint8Array)(error404)) throw "Error 404.";
+              return uint8Array;
+            });
+          };
+        }; // type Entry = {"type": String, "hash": String}
+        // type File = {"type": String, "data": Uint8Array}
+        // String -> String -> Promise (Map String Entry)
+        //   Solves the manifest of a Swarm address recursively.
+        //   Returns a map from full paths to entries.
+
+
+        var downloadEntries = function downloadEntries(swarmUrl) {
+          return function (hash) {
+            var search = function search(hash) {
+              return function (path) {
+                return function (routes) {
+                  // Formats an entry to the Swarm.js type.
+                  var format = function format(entry) {
+                    return {
+                      type: entry.contentType,
+                      hash: entry.hash
+                    };
+                  }; // To download a single entry:
+                  //   if type is bzz-manifest, go deeper
+                  //   if not, add it to the routing table
+
+
+                  var downloadEntry = function downloadEntry(entry) {
+                    if (entry.path === undefined) {
+                      return Promise.resolve();
+                    } else {
+                      return entry.contentType === "application/bzz-manifest+json" ? search(entry.hash)(path + entry.path)(routes) : Promise.resolve(impureInsert(path + entry.path)(format(entry))(routes));
+                    }
+                  }; // Downloads the initial manifest and then each entry.
+
+
+                  return downloadData(swarmUrl)(hash).then(function (text) {
+                    return JSON.parse(toString(text)).entries;
+                  }).then(function (entries) {
+                    return Promise.all(entries.map(downloadEntry));
+                  }).then(function () {
+                    return routes;
+                  });
+                };
+              };
+            };
+
+            return search(hash)("")({});
+          };
+        }; // String -> String -> Promise (Map String String)
+        //   Same as `downloadEntries`, but returns only hashes (no types).
+
+
+        var downloadRoutes = function downloadRoutes(swarmUrl) {
+          return function (hash) {
+            return downloadEntries(swarmUrl)(hash).then(function (entries) {
+              return toMap(Object.keys(entries))(Object.keys(entries).map(function (route) {
+                return entries[route].hash;
+              }));
+            });
+          };
+        }; // String -> String -> Promise (Map String File)
+        //   Gets the entire directory tree in a Swarm address.
+        //   Returns a promise mapping paths to file contents.
+
+
+        var downloadDirectory = function downloadDirectory(swarmUrl) {
+          return function (hash) {
+            return downloadEntries(swarmUrl)(hash).then(function (entries) {
+              var paths = Object.keys(entries);
+              var hashs = paths.map(function (path) {
+                return entries[path].hash;
+              });
+              var types = paths.map(function (path) {
+                return entries[path].type;
+              });
+              var datas = hashs.map(downloadData(swarmUrl));
+
+              var files = function files(datas) {
+                return datas.map(function (data, i) {
+                  return {
+                    type: types[i],
+                    data: data
+                  };
+                });
+              };
+
+              return Promise.all(datas).then(function (datas) {
+                return toMap(paths)(files(datas));
+              });
+            });
+          };
+        }; // String -> String -> String -> Promise String
+        //   Gets the raw contents of a Swarm hash address.
+        //   Returns a promise with the downloaded file path.
+
+
+        var downloadDataToDisk = function downloadDataToDisk(swarmUrl) {
+          return function (hash) {
+            return function (filePath) {
+              return files.download(rawUrl(swarmUrl)(hash))(filePath);
+            };
+          };
+        }; // String -> String -> String -> Promise (Map String String)
+        //   Gets the entire directory tree in a Swarm address.
+        //   Returns a promise mapping paths to file contents.
+
+
+        var downloadDirectoryToDisk = function downloadDirectoryToDisk(swarmUrl) {
+          return function (hash) {
+            return function (dirPath) {
+              return downloadRoutes(swarmUrl)(hash).then(function (routingTable) {
+                var downloads = [];
+
+                for (var route in routingTable) {
+                  if (route.length > 0) {
+                    var filePath = path.join(dirPath, route);
+                    downloads.push(downloadDataToDisk(swarmUrl)(routingTable[route])(filePath));
+                  }
+
+                  ;
+                }
+
+                ;
+                return Promise.all(downloads).then(function () {
+                  return dirPath;
+                });
+              });
+            };
+          };
+        }; // String -> Uint8Array -> Promise String
+        //   Uploads raw data to Swarm.
+        //   Returns a promise with the uploaded hash.
+
+
+        var uploadData = function uploadData(swarmUrl) {
+          return function (data) {
+            return request("".concat(swarmUrl, "/bzzr:/"), {
+              body: typeof data === "string" ? fromString(data) : data,
+              method: "POST"
+            });
+          };
+        }; // String -> String -> String -> File -> Promise String
+        //   Uploads a file to the Swarm manifest at a given hash, under a specific
+        //   route. Returns a promise containing the uploaded hash.
+        //   FIXME: for some reasons Swarm-Gateways is sometimes returning
+        //   error 404 (bad request), so we retry up to 3 times. Why?
+
+
+        var uploadToManifest = function uploadToManifest(swarmUrl) {
+          return function (hash) {
+            return function (route) {
+              return function (file) {
+                var attempt = function attempt(n) {
+                  var slashRoute = route[0] === "/" ? route : "/" + route;
+                  var url = "".concat(swarmUrl, "/bzz:/").concat(hash).concat(slashRoute);
+                  var opt = {
+                    method: "PUT",
+                    headers: {
+                      "Content-Type": file.type
+                    },
+                    body: file.data
+                  };
+                  return request(url, opt).then(function (response) {
+                    if (response.indexOf("error") !== -1) {
+                      throw response;
+                    }
+
+                    return response;
+                  }).catch(function (e) {
+                    return n > 0 && attempt(n - 1);
+                  });
+                };
+
+                return attempt(3);
+              };
+            };
+          };
+        }; // String -> {type: String, data: Uint8Array} -> Promise String
+
+
+        var uploadFile = function uploadFile(swarmUrl) {
+          return function (file) {
+            return uploadDirectory(swarmUrl)({
+              "": file
+            });
+          };
+        }; // String -> String -> Promise String
+
+
+        var uploadFileFromDisk = function uploadFileFromDisk(swarmUrl) {
+          return function (filePath) {
+            return fs.readFile(filePath).then(function (data) {
+              return uploadFile(swarmUrl)({
+                type: mimetype.lookup(filePath),
+                data: data
+              });
+            });
+          };
+        }; // String -> Map String File -> Promise String
+        //   Uploads a directory to Swarm. The directory is
+        //   represented as a map of routes and files.
+        //   A default path is encoded by having a "" route.
+
+
+        var uploadDirectory = function uploadDirectory(swarmUrl) {
+          return function (directory) {
+            return uploadData(swarmUrl)("{}").then(function (hash) {
+              var uploadRoute = function uploadRoute(route) {
+                return function (hash) {
+                  return uploadToManifest(swarmUrl)(hash)(route)(directory[route]);
+                };
+              };
+
+              var uploadToHash = function uploadToHash(hash, route) {
+                return hash.then(uploadRoute(route));
+              };
+
+              return Object.keys(directory).reduce(uploadToHash, Promise.resolve(hash));
+            });
+          };
+        }; // String -> Promise String
+
+
+        var uploadDataFromDisk = function uploadDataFromDisk(swarmUrl) {
+          return function (filePath) {
+            return fs.readFile(filePath).then(uploadData(swarmUrl));
+          };
+        }; // String -> Nullable String -> String -> Promise String
+
+
+        var uploadDirectoryFromDisk = function uploadDirectoryFromDisk(swarmUrl) {
+          return function (defaultPath) {
+            return function (dirPath) {
+              return files.directoryTree(dirPath).then(function (fullPaths) {
+                return Promise.all(fullPaths.map(function (path) {
+                  return fs.readFile(path);
+                })).then(function (datas) {
+                  var paths = fullPaths.map(function (path) {
+                    return path.slice(dirPath.length);
+                  });
+                  var types = fullPaths.map(function (path) {
+                    return mimetype.lookup(path) || "text/plain";
+                  });
+                  return toMap(paths)(datas.map(function (data, i) {
+                    return {
+                      type: types[i],
+                      data: data
+                    };
+                  }));
+                });
+              }).then(function (directory) {
+                return merge(defaultPath ? {
+                  "": directory[defaultPath]
+                } : {})(directory);
+              }).then(uploadDirectory(swarmUrl));
+            };
+          };
+        }; // String -> UploadInfo -> Promise String
+        //   Simplified multi-type upload which calls the correct
+        //   one based on the type of the argument given.
+
+
+        var _upload = function upload(swarmUrl) {
+          return function (arg) {
+            // Upload raw data from browser
+            if (arg.pick === "data") {
+              return pick.data().then(uploadData(swarmUrl)); // Upload a file from browser
+            } else if (arg.pick === "file") {
+              return pick.file().then(uploadFile(swarmUrl)); // Upload a directory from browser
+            } else if (arg.pick === "directory") {
+              return pick.directory().then(uploadDirectory(swarmUrl)); // Upload directory/file from disk
+            } else if (arg.path) {
+              switch (arg.kind) {
+                case "data":
+                  return uploadDataFromDisk(swarmUrl)(arg.path);
+
+                case "file":
+                  return uploadFileFromDisk(swarmUrl)(arg.path);
+
+                case "directory":
+                  return uploadDirectoryFromDisk(swarmUrl)(arg.defaultFile)(arg.path);
+              }
+
+              ; // Upload UTF-8 string or raw data (buffer)
+            } else if (arg.length || typeof arg === "string") {
+              return uploadData(swarmUrl)(arg); // Upload directory with JSON
+            } else if (arg instanceof Object) {
+              return uploadDirectory(swarmUrl)(arg);
+            }
+
+            return Promise.reject(new Error("Bad arguments"));
+          };
+        }; // String -> String -> Nullable String -> Promise (String | Uint8Array | Map String Uint8Array)
+        //   Simplified multi-type download which calls the correct function based on
+        //   the type of the argument given, and on whether the Swwarm address has a
+        //   directory or a file.
+
+
+        var _download = function download(swarmUrl) {
+          return function (hash) {
+            return function (path) {
+              return isDirectory(swarmUrl)(hash).then(function (isDir) {
+                if (isDir) {
+                  return path ? downloadDirectoryToDisk(swarmUrl)(hash)(path) : downloadDirectory(swarmUrl)(hash);
+                } else {
+                  return path ? downloadDataToDisk(swarmUrl)(hash)(path) : downloadData(swarmUrl)(hash);
+                }
+              });
+            };
+          };
+        }; // String -> Promise String
+        //   Downloads the Swarm binaries into a path. Returns a promise that only
+        //   resolves when the exact Swarm file is there, and verified to be correct.
+        //   If it was already there to begin with, skips the download.
+
+
+        var downloadBinary = function downloadBinary(path, archives) {
+          var system = os.platform().replace("win32", "windows") + "-" + (os.arch() === "x64" ? "amd64" : "386");
+          var archive = (archives || defaultArchives)[system];
+          var archiveUrl = downloadUrl + archive.archive + ".tar.gz";
+          var archiveMD5 = archive.archiveMD5;
+          var binaryMD5 = archive.binaryMD5;
+          return files.safeDownloadArchived(archiveUrl)(archiveMD5)(binaryMD5)(path);
+        }; // type SwarmSetup = {
+        //   account : String,
+        //   password : String,
+        //   dataDir : String,
+        //   binPath : String,
+        //   ensApi : String,
+        //   onDownloadProgress : Number ~> (),
+        //   archives : [{
+        //     archive: String,
+        //     binaryMD5: String,
+        //     archiveMD5: String
+        //   }]
+        // }
+        // SwarmSetup ~> Promise Process
+        //   Starts the Swarm process.
+
+
+        var startProcess = function startProcess(swarmSetup) {
+          return new Promise(function (resolve, reject) {
+            var spawn = child_process.spawn;
+
+            var hasString = function hasString(str) {
+              return function (buffer) {
+                return ('' + buffer).indexOf(str) !== -1;
+              };
+            };
+
+            var account = swarmSetup.account,
+                password = swarmSetup.password,
+                dataDir = swarmSetup.dataDir,
+                ensApi = swarmSetup.ensApi,
+                privateKey = swarmSetup.privateKey;
+            var STARTUP_TIMEOUT_SECS = 3;
+            var WAITING_PASSWORD = 0;
+            var STARTING = 1;
+            var LISTENING = 2;
+            var PASSWORD_PROMPT_HOOK = "Passphrase";
+            var LISTENING_HOOK = "Swarm http proxy started";
+            var state = WAITING_PASSWORD;
+            var swarmProcess = spawn(swarmSetup.binPath, ['--bzzaccount', account || privateKey, '--datadir', dataDir, '--ens-api', ensApi]);
+
+            var handleProcessOutput = function handleProcessOutput(data) {
+              if (state === WAITING_PASSWORD && hasString(PASSWORD_PROMPT_HOOK)(data)) {
+                setTimeout(function () {
+                  state = STARTING;
+                  swarmProcess.stdin.write(password + '\n');
+                }, 500);
+              } else if (hasString(LISTENING_HOOK)(data)) {
+                state = LISTENING;
+                clearTimeout(timeout);
+                resolve(swarmProcess);
+              }
+            };
+
+            swarmProcess.stdout.on('data', handleProcessOutput);
+            swarmProcess.stderr.on('data', handleProcessOutput); //swarmProcess.on('close', () => setTimeout(restart, 2000));
+
+            var restart = function restart() {
+              return startProcess(swarmSetup).then(resolve).catch(reject);
+            };
+
+            var error = function error() {
+              return reject(new Error("Couldn't start swarm process."));
+            };
+
+            var timeout = setTimeout(error, 20000);
+          });
+        }; // Process ~> Promise ()
+        //   Stops the Swarm process.
+
+
+        var stopProcess = function stopProcess(process) {
+          return new Promise(function (resolve, reject) {
+            process.stderr.removeAllListeners('data');
+            process.stdout.removeAllListeners('data');
+            process.stdin.removeAllListeners('error');
+            process.removeAllListeners('error');
+            process.removeAllListeners('exit');
+            process.kill('SIGINT');
+            var killTimeout = setTimeout(function () {
+              return process.kill('SIGKILL');
+            }, 8000);
+            process.once('close', function () {
+              clearTimeout(killTimeout);
+              resolve();
+            });
+          });
+        }; // SwarmSetup -> (SwarmAPI -> Promise ()) -> Promise ()
+        //   Receives a Swarm configuration object and a callback function. It then
+        //   checks if a local Swarm node is running. If no local Swarm is found, it
+        //   downloads the Swarm binaries to the dataDir (if not there), checksums,
+        //   starts the Swarm process and calls the callback function with an API
+        //   object using the local node. That callback must return a promise which
+        //   will resolve when it is done using the API, so that this function can
+        //   close the Swarm process properly. Returns a promise that resolves when the
+        //   user is done with the API and the Swarm process is closed.
+        //   TODO: check if Swarm process is already running (improve `isAvailable`)
+
+
+        var local = function local(swarmSetup) {
+          return function (useAPI) {
+            return _isAvailable("http://localhost:8500").then(function (isAvailable) {
+              return isAvailable ? useAPI(at("http://localhost:8500")).then(function () {}) : downloadBinary(swarmSetup.binPath, swarmSetup.archives).onData(function (data) {
+                return (swarmSetup.onProgress || function () {})(data.length);
+              }).then(function () {
+                return startProcess(swarmSetup);
+              }).then(function (process) {
+                return useAPI(at("http://localhost:8500")).then(function () {
+                  return process;
+                });
+              }).then(stopProcess);
+            });
+          };
+        }; // String ~> Promise Bool
+        //   Returns true if Swarm is available on `url`.
+        //   Perfoms a test upload to determine that.
+        //   TODO: improve this?
+
+
+        var _isAvailable = function isAvailable(swarmUrl) {
+          var testFile = "test";
+          var testHash = "c9a99c7d326dcc6316f32fe2625b311f6dc49a175e6877681ded93137d3569e7";
+          return uploadData(swarmUrl)(testFile).then(function (hash) {
+            return hash === testHash;
+          }).catch(function () {
+            return false;
+          });
+        }; // String -> String ~> Promise Bool
+        //   Returns a Promise which is true if that Swarm address is a directory.
+        //   Determines that by checking that it (i) is a JSON, (ii) has a .entries.
+        //   TODO: improve this?
+
+
+        var isDirectory = function isDirectory(swarmUrl) {
+          return function (hash) {
+            return downloadData(swarmUrl)(hash).then(function (data) {
+              try {
+                return !!JSON.parse(toString(data)).entries;
+              } catch (e) {
+                return false;
+              }
+            });
+          };
+        }; // Uncurries a function; used to allow the f(x,y,z) style on exports.
+
+
+        var uncurry = function uncurry(f) {
+          return function (a, b, c, d, e) {
+            var p; // Hardcoded because efficiency (`arguments` is very slow).
+
+            if (typeof a !== "undefined") p = f(a);
+            if (typeof b !== "undefined") p = f(b);
+            if (typeof c !== "undefined") p = f(c);
+            if (typeof d !== "undefined") p = f(d);
+            if (typeof e !== "undefined") p = f(e);
+            return p;
+          };
+        }; // () -> Promise Bool
+        //   Not sure how to mock Swarm to test it properly. Ideas?
+
+
+        var test = function test() {
+          return Promise.resolve(true);
+        }; // Uint8Array -> String
+
+
+        var toString = function toString(uint8Array) {
+          return bytes.toString(bytes.fromUint8Array(uint8Array));
+        }; // String -> Uint8Array
+
+
+        var fromString = function fromString(string) {
+          return bytes.toUint8Array(bytes.fromString(string));
+        }; // String -> SwarmAPI
+        //   Fixes the `swarmUrl`, returning an API where you don't have to pass it.
+
+
+        var at = function at(swarmUrl) {
+          return {
+            download: function download(hash, path) {
+              return _download(swarmUrl)(hash)(path);
+            },
+            downloadData: uncurry(downloadData(swarmUrl)),
+            downloadDataToDisk: uncurry(downloadDataToDisk(swarmUrl)),
+            downloadDirectory: uncurry(downloadDirectory(swarmUrl)),
+            downloadDirectoryToDisk: uncurry(downloadDirectoryToDisk(swarmUrl)),
+            downloadEntries: uncurry(downloadEntries(swarmUrl)),
+            downloadRoutes: uncurry(downloadRoutes(swarmUrl)),
+            isAvailable: function isAvailable() {
+              return _isAvailable(swarmUrl);
+            },
+            upload: function upload(arg) {
+              return _upload(swarmUrl)(arg);
+            },
+            uploadData: uncurry(uploadData(swarmUrl)),
+            uploadFile: uncurry(uploadFile(swarmUrl)),
+            uploadFileFromDisk: uncurry(uploadFile(swarmUrl)),
+            uploadDataFromDisk: uncurry(uploadDataFromDisk(swarmUrl)),
+            uploadDirectory: uncurry(uploadDirectory(swarmUrl)),
+            uploadDirectoryFromDisk: uncurry(uploadDirectoryFromDisk(swarmUrl)),
+            uploadToManifest: uncurry(uploadToManifest(swarmUrl)),
+            pick: pick,
+            hash: hash,
+            fromString: fromString,
+            toString: toString
+          };
+        };
+
+        return {
+          at: at,
+          local: local,
+          download: _download,
+          downloadBinary: downloadBinary,
+          downloadData: downloadData,
+          downloadDataToDisk: downloadDataToDisk,
+          downloadDirectory: downloadDirectory,
+          downloadDirectoryToDisk: downloadDirectoryToDisk,
+          downloadEntries: downloadEntries,
+          downloadRoutes: downloadRoutes,
+          isAvailable: _isAvailable,
+          startProcess: startProcess,
+          stopProcess: stopProcess,
+          upload: _upload,
+          uploadData: uploadData,
+          uploadDataFromDisk: uploadDataFromDisk,
+          uploadFile: uploadFile,
+          uploadFileFromDisk: uploadFileFromDisk,
+          uploadDirectory: uploadDirectory,
+          uploadDirectoryFromDisk: uploadDirectoryFromDisk,
+          uploadToManifest: uploadToManifest,
+          pick: pick,
+          hash: hash,
+          fromString: fromString,
+          toString: toString
+        };
+      };
+    }, {}], 18: [function (require, module, exports) {
+
+      exports = module.exports = trim;
+
+      function trim(str) {
+        return str.replace(/^\s*|\s*$/g, '');
+      }
+
+      exports.left = function (str) {
+        return str.replace(/^\s*/, '');
+      };
+
+      exports.right = function (str) {
+        return str.replace(/\s*$/, '');
+      };
+    }, {}], 19: [function (require, module, exports) {
+      (function (global) {
+        //     Underscore.js 1.9.1
+        //     http://underscorejs.org
+        //     (c) 2009-2018 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+        //     Underscore may be freely distributed under the MIT license.
+
+        (function () {
+
+          // Baseline setup
+          // --------------
+
+          // Establish the root object, `window` (`self`) in the browser, `global`
+          // on the server, or `this` in some virtual machines. We use `self`
+          // instead of `window` for `WebWorker` support.
+          var root = (typeof self === "undefined" ? "undefined" : _typeof(self)) == 'object' && self.self === self && self || (typeof global === "undefined" ? "undefined" : _typeof(global)) == 'object' && global.global === global && global || this || {};
+
+          // Save the previous value of the `_` variable.
+          var previousUnderscore = root._;
+
+          // Save bytes in the minified (but not gzipped) version:
+          var ArrayProto = Array.prototype,
+              ObjProto = Object.prototype;
+          var SymbolProto = typeof Symbol !== 'undefined' ? Symbol.prototype : null;
+
+          // Create quick reference variables for speed access to core prototypes.
+          var push = ArrayProto.push,
+              slice = ArrayProto.slice,
+              toString = ObjProto.toString,
+              hasOwnProperty = ObjProto.hasOwnProperty;
+
+          // All **ECMAScript 5** native function implementations that we hope to use
+          // are declared here.
+          var nativeIsArray = Array.isArray,
+              nativeKeys = Object.keys,
+              nativeCreate = Object.create;
+
+          // Naked function reference for surrogate-prototype-swapping.
+          var Ctor = function Ctor() {};
+
+          // Create a safe reference to the Underscore object for use below.
+          var _ = function _(obj) {
+            if (obj instanceof _) return obj;
+            if (!(this instanceof _)) return new _(obj);
+            this._wrapped = obj;
+          };
+
+          // Export the Underscore object for **Node.js**, with
+          // backwards-compatibility for their old module API. If we're in
+          // the browser, add `_` as a global object.
+          // (`nodeType` is checked to ensure that `module`
+          // and `exports` are not HTML elements.)
+          if (typeof exports != 'undefined' && !exports.nodeType) {
+            if (typeof module != 'undefined' && !module.nodeType && module.exports) {
+              exports = module.exports = _;
+            }
+            exports._ = _;
+          } else {
+            root._ = _;
+          }
+
+          // Current version.
+          _.VERSION = '1.9.1';
+
+          // Internal function that returns an efficient (for current engines) version
+          // of the passed-in callback, to be repeatedly applied in other Underscore
+          // functions.
+          var optimizeCb = function optimizeCb(func, context, argCount) {
+            if (context === void 0) return func;
+            switch (argCount == null ? 3 : argCount) {
+              case 1:
+                return function (value) {
+                  return func.call(context, value);
+                };
+              // The 2-argument case is omitted because we’re not using it.
+              case 3:
+                return function (value, index, collection) {
+                  return func.call(context, value, index, collection);
+                };
+              case 4:
+                return function (accumulator, value, index, collection) {
+                  return func.call(context, accumulator, value, index, collection);
+                };
+            }
+            return function () {
+              return func.apply(context, arguments);
+            };
+          };
+
+          var builtinIteratee;
+
+          // An internal function to generate callbacks that can be applied to each
+          // element in a collection, returning the desired result — either `identity`,
+          // an arbitrary callback, a property matcher, or a property accessor.
+          var cb = function cb(value, context, argCount) {
+            if (_.iteratee !== builtinIteratee) return _.iteratee(value, context);
+            if (value == null) return _.identity;
+            if (_.isFunction(value)) return optimizeCb(value, context, argCount);
+            if (_.isObject(value) && !_.isArray(value)) return _.matcher(value);
+            return _.property(value);
+          };
+
+          // External wrapper for our callback generator. Users may customize
+          // `_.iteratee` if they want additional predicate/iteratee shorthand styles.
+          // This abstraction hides the internal-only argCount argument.
+          _.iteratee = builtinIteratee = function builtinIteratee(value, context) {
+            return cb(value, context, Infinity);
+          };
+
+          // Some functions take a variable number of arguments, or a few expected
+          // arguments at the beginning and then a variable number of values to operate
+          // on. This helper accumulates all remaining arguments past the function’s
+          // argument length (or an explicit `startIndex`), into an array that becomes
+          // the last argument. Similar to ES6’s "rest parameter".
+          var restArguments = function restArguments(func, startIndex) {
+            startIndex = startIndex == null ? func.length - 1 : +startIndex;
+            return function () {
+              var length = Math.max(arguments.length - startIndex, 0),
+                  rest = Array(length),
+                  index = 0;
+              for (; index < length; index++) {
+                rest[index] = arguments[index + startIndex];
+              }
+              switch (startIndex) {
+                case 0:
+                  return func.call(this, rest);
+                case 1:
+                  return func.call(this, arguments[0], rest);
+                case 2:
+                  return func.call(this, arguments[0], arguments[1], rest);
+              }
+              var args = Array(startIndex + 1);
+              for (index = 0; index < startIndex; index++) {
+                args[index] = arguments[index];
+              }
+              args[startIndex] = rest;
+              return func.apply(this, args);
+            };
+          };
+
+          // An internal function for creating a new object that inherits from another.
+          var baseCreate = function baseCreate(prototype) {
+            if (!_.isObject(prototype)) return {};
+            if (nativeCreate) return nativeCreate(prototype);
+            Ctor.prototype = prototype;
+            var result = new Ctor();
+            Ctor.prototype = null;
+            return result;
+          };
+
+          var shallowProperty = function shallowProperty(key) {
+            return function (obj) {
+              return obj == null ? void 0 : obj[key];
+            };
+          };
+
+          var has = function has(obj, path) {
+            return obj != null && hasOwnProperty.call(obj, path);
+          };
+
+          var deepGet = function deepGet(obj, path) {
+            var length = path.length;
+            for (var i = 0; i < length; i++) {
+              if (obj == null) return void 0;
+              obj = obj[path[i]];
+            }
+            return length ? obj : void 0;
+          };
+
+          // Helper for collection methods to determine whether a collection
+          // should be iterated as an array or as an object.
+          // Related: http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength
+          // Avoids a very nasty iOS 8 JIT bug on ARM-64. #2094
+          var MAX_ARRAY_INDEX = Math.pow(2, 53) - 1;
+          var getLength = shallowProperty('length');
+          var isArrayLike = function isArrayLike(collection) {
+            var length = getLength(collection);
+            return typeof length == 'number' && length >= 0 && length <= MAX_ARRAY_INDEX;
+          };
+
+          // Collection Functions
+          // --------------------
+
+          // The cornerstone, an `each` implementation, aka `forEach`.
+          // Handles raw objects in addition to array-likes. Treats all
+          // sparse array-likes as if they were dense.
+          _.each = _.forEach = function (obj, iteratee, context) {
+            iteratee = optimizeCb(iteratee, context);
+            var i, length;
+            if (isArrayLike(obj)) {
+              for (i = 0, length = obj.length; i < length; i++) {
+                iteratee(obj[i], i, obj);
+              }
+            } else {
+              var keys = _.keys(obj);
+              for (i = 0, length = keys.length; i < length; i++) {
+                iteratee(obj[keys[i]], keys[i], obj);
+              }
+            }
+            return obj;
+          };
+
+          // Return the results of applying the iteratee to each element.
+          _.map = _.collect = function (obj, iteratee, context) {
+            iteratee = cb(iteratee, context);
+            var keys = !isArrayLike(obj) && _.keys(obj),
+                length = (keys || obj).length,
+                results = Array(length);
+            for (var index = 0; index < length; index++) {
+              var currentKey = keys ? keys[index] : index;
+              results[index] = iteratee(obj[currentKey], currentKey, obj);
+            }
+            return results;
+          };
+
+          // Create a reducing function iterating left or right.
+          var createReduce = function createReduce(dir) {
+            // Wrap code that reassigns argument variables in a separate function than
+            // the one that accesses `arguments.length` to avoid a perf hit. (#1991)
+            var reducer = function reducer(obj, iteratee, memo, initial) {
+              var keys = !isArrayLike(obj) && _.keys(obj),
+                  length = (keys || obj).length,
+                  index = dir > 0 ? 0 : length - 1;
+              if (!initial) {
+                memo = obj[keys ? keys[index] : index];
+                index += dir;
+              }
+              for (; index >= 0 && index < length; index += dir) {
+                var currentKey = keys ? keys[index] : index;
+                memo = iteratee(memo, obj[currentKey], currentKey, obj);
+              }
+              return memo;
+            };
+
+            return function (obj, iteratee, memo, context) {
+              var initial = arguments.length >= 3;
+              return reducer(obj, optimizeCb(iteratee, context, 4), memo, initial);
+            };
+          };
+
+          // **Reduce** builds up a single result from a list of values, aka `inject`,
+          // or `foldl`.
+          _.reduce = _.foldl = _.inject = createReduce(1);
+
+          // The right-associative version of reduce, also known as `foldr`.
+          _.reduceRight = _.foldr = createReduce(-1);
+
+          // Return the first value which passes a truth test. Aliased as `detect`.
+          _.find = _.detect = function (obj, predicate, context) {
+            var keyFinder = isArrayLike(obj) ? _.findIndex : _.findKey;
+            var key = keyFinder(obj, predicate, context);
+            if (key !== void 0 && key !== -1) return obj[key];
+          };
+
+          // Return all the elements that pass a truth test.
+          // Aliased as `select`.
+          _.filter = _.select = function (obj, predicate, context) {
+            var results = [];
+            predicate = cb(predicate, context);
+            _.each(obj, function (value, index, list) {
+              if (predicate(value, index, list)) results.push(value);
+            });
+            return results;
+          };
+
+          // Return all the elements for which a truth test fails.
+          _.reject = function (obj, predicate, context) {
+            return _.filter(obj, _.negate(cb(predicate)), context);
+          };
+
+          // Determine whether all of the elements match a truth test.
+          // Aliased as `all`.
+          _.every = _.all = function (obj, predicate, context) {
+            predicate = cb(predicate, context);
+            var keys = !isArrayLike(obj) && _.keys(obj),
+                length = (keys || obj).length;
+            for (var index = 0; index < length; index++) {
+              var currentKey = keys ? keys[index] : index;
+              if (!predicate(obj[currentKey], currentKey, obj)) return false;
+            }
+            return true;
+          };
+
+          // Determine if at least one element in the object matches a truth test.
+          // Aliased as `any`.
+          _.some = _.any = function (obj, predicate, context) {
+            predicate = cb(predicate, context);
+            var keys = !isArrayLike(obj) && _.keys(obj),
+                length = (keys || obj).length;
+            for (var index = 0; index < length; index++) {
+              var currentKey = keys ? keys[index] : index;
+              if (predicate(obj[currentKey], currentKey, obj)) return true;
+            }
+            return false;
+          };
+
+          // Determine if the array or object contains a given item (using `===`).
+          // Aliased as `includes` and `include`.
+          _.contains = _.includes = _.include = function (obj, item, fromIndex, guard) {
+            if (!isArrayLike(obj)) obj = _.values(obj);
+            if (typeof fromIndex != 'number' || guard) fromIndex = 0;
+            return _.indexOf(obj, item, fromIndex) >= 0;
+          };
+
+          // Invoke a method (with arguments) on every item in a collection.
+          _.invoke = restArguments(function (obj, path, args) {
+            var contextPath, func;
+            if (_.isFunction(path)) {
+              func = path;
+            } else if (_.isArray(path)) {
+              contextPath = path.slice(0, -1);
+              path = path[path.length - 1];
+            }
+            return _.map(obj, function (context) {
+              var method = func;
+              if (!method) {
+                if (contextPath && contextPath.length) {
+                  context = deepGet(context, contextPath);
+                }
+                if (context == null) return void 0;
+                method = context[path];
+              }
+              return method == null ? method : method.apply(context, args);
+            });
+          });
+
+          // Convenience version of a common use case of `map`: fetching a property.
+          _.pluck = function (obj, key) {
+            return _.map(obj, _.property(key));
+          };
+
+          // Convenience version of a common use case of `filter`: selecting only objects
+          // containing specific `key:value` pairs.
+          _.where = function (obj, attrs) {
+            return _.filter(obj, _.matcher(attrs));
+          };
+
+          // Convenience version of a common use case of `find`: getting the first object
+          // containing specific `key:value` pairs.
+          _.findWhere = function (obj, attrs) {
+            return _.find(obj, _.matcher(attrs));
+          };
+
+          // Return the maximum element (or element-based computation).
+          _.max = function (obj, iteratee, context) {
+            var result = -Infinity,
+                lastComputed = -Infinity,
+                value,
+                computed;
+            if (iteratee == null || typeof iteratee == 'number' && _typeof(obj[0]) != 'object' && obj != null) {
+              obj = isArrayLike(obj) ? obj : _.values(obj);
+              for (var i = 0, length = obj.length; i < length; i++) {
+                value = obj[i];
+                if (value != null && value > result) {
+                  result = value;
+                }
+              }
+            } else {
+              iteratee = cb(iteratee, context);
+              _.each(obj, function (v, index, list) {
+                computed = iteratee(v, index, list);
+                if (computed > lastComputed || computed === -Infinity && result === -Infinity) {
+                  result = v;
+                  lastComputed = computed;
+                }
+              });
+            }
+            return result;
+          };
+
+          // Return the minimum element (or element-based computation).
+          _.min = function (obj, iteratee, context) {
+            var result = Infinity,
+                lastComputed = Infinity,
+                value,
+                computed;
+            if (iteratee == null || typeof iteratee == 'number' && _typeof(obj[0]) != 'object' && obj != null) {
+              obj = isArrayLike(obj) ? obj : _.values(obj);
+              for (var i = 0, length = obj.length; i < length; i++) {
+                value = obj[i];
+                if (value != null && value < result) {
+                  result = value;
+                }
+              }
+            } else {
+              iteratee = cb(iteratee, context);
+              _.each(obj, function (v, index, list) {
+                computed = iteratee(v, index, list);
+                if (computed < lastComputed || computed === Infinity && result === Infinity) {
+                  result = v;
+                  lastComputed = computed;
+                }
+              });
+            }
+            return result;
+          };
+
+          // Shuffle a collection.
+          _.shuffle = function (obj) {
+            return _.sample(obj, Infinity);
+          };
+
+          // Sample **n** random values from a collection using the modern version of the
+          // [Fisher-Yates shuffle](http://en.wikipedia.org/wiki/Fisher–Yates_shuffle).
+          // If **n** is not specified, returns a single random element.
+          // The internal `guard` argument allows it to work with `map`.
+          _.sample = function (obj, n, guard) {
+            if (n == null || guard) {
+              if (!isArrayLike(obj)) obj = _.values(obj);
+              return obj[_.random(obj.length - 1)];
+            }
+            var sample = isArrayLike(obj) ? _.clone(obj) : _.values(obj);
+            var length = getLength(sample);
+            n = Math.max(Math.min(n, length), 0);
+            var last = length - 1;
+            for (var index = 0; index < n; index++) {
+              var rand = _.random(index, last);
+              var temp = sample[index];
+              sample[index] = sample[rand];
+              sample[rand] = temp;
+            }
+            return sample.slice(0, n);
+          };
+
+          // Sort the object's values by a criterion produced by an iteratee.
+          _.sortBy = function (obj, iteratee, context) {
+            var index = 0;
+            iteratee = cb(iteratee, context);
+            return _.pluck(_.map(obj, function (value, key, list) {
+              return {
+                value: value,
+                index: index++,
+                criteria: iteratee(value, key, list)
+              };
+            }).sort(function (left, right) {
+              var a = left.criteria;
+              var b = right.criteria;
+              if (a !== b) {
+                if (a > b || a === void 0) return 1;
+                if (a < b || b === void 0) return -1;
+              }
+              return left.index - right.index;
+            }), 'value');
+          };
+
+          // An internal function used for aggregate "group by" operations.
+          var group = function group(behavior, partition) {
+            return function (obj, iteratee, context) {
+              var result = partition ? [[], []] : {};
+              iteratee = cb(iteratee, context);
+              _.each(obj, function (value, index) {
+                var key = iteratee(value, index, obj);
+                behavior(result, value, key);
+              });
+              return result;
+            };
+          };
+
+          // Groups the object's values by a criterion. Pass either a string attribute
+          // to group by, or a function that returns the criterion.
+          _.groupBy = group(function (result, value, key) {
+            if (has(result, key)) result[key].push(value);else result[key] = [value];
+          });
+
+          // Indexes the object's values by a criterion, similar to `groupBy`, but for
+          // when you know that your index values will be unique.
+          _.indexBy = group(function (result, value, key) {
+            result[key] = value;
+          });
+
+          // Counts instances of an object that group by a certain criterion. Pass
+          // either a string attribute to count by, or a function that returns the
+          // criterion.
+          _.countBy = group(function (result, value, key) {
+            if (has(result, key)) result[key]++;else result[key] = 1;
+          });
+
+          var reStrSymbol = /[^\ud800-\udfff]|[\ud800-\udbff][\udc00-\udfff]|[\ud800-\udfff]/g;
+          // Safely create a real, live array from anything iterable.
+          _.toArray = function (obj) {
+            if (!obj) return [];
+            if (_.isArray(obj)) return slice.call(obj);
+            if (_.isString(obj)) {
+              // Keep surrogate pair characters together
+              return obj.match(reStrSymbol);
+            }
+            if (isArrayLike(obj)) return _.map(obj, _.identity);
+            return _.values(obj);
+          };
+
+          // Return the number of elements in an object.
+          _.size = function (obj) {
+            if (obj == null) return 0;
+            return isArrayLike(obj) ? obj.length : _.keys(obj).length;
+          };
+
+          // Split a collection into two arrays: one whose elements all satisfy the given
+          // predicate, and one whose elements all do not satisfy the predicate.
+          _.partition = group(function (result, value, pass) {
+            result[pass ? 0 : 1].push(value);
+          }, true);
+
+          // Array Functions
+          // ---------------
+
+          // Get the first element of an array. Passing **n** will return the first N
+          // values in the array. Aliased as `head` and `take`. The **guard** check
+          // allows it to work with `_.map`.
+          _.first = _.head = _.take = function (array, n, guard) {
+            if (array == null || array.length < 1) return n == null ? void 0 : [];
+            if (n == null || guard) return array[0];
+            return _.initial(array, array.length - n);
+          };
+
+          // Returns everything but the last entry of the array. Especially useful on
+          // the arguments object. Passing **n** will return all the values in
+          // the array, excluding the last N.
+          _.initial = function (array, n, guard) {
+            return slice.call(array, 0, Math.max(0, array.length - (n == null || guard ? 1 : n)));
+          };
+
+          // Get the last element of an array. Passing **n** will return the last N
+          // values in the array.
+          _.last = function (array, n, guard) {
+            if (array == null || array.length < 1) return n == null ? void 0 : [];
+            if (n == null || guard) return array[array.length - 1];
+            return _.rest(array, Math.max(0, array.length - n));
+          };
+
+          // Returns everything but the first entry of the array. Aliased as `tail` and `drop`.
+          // Especially useful on the arguments object. Passing an **n** will return
+          // the rest N values in the array.
+          _.rest = _.tail = _.drop = function (array, n, guard) {
+            return slice.call(array, n == null || guard ? 1 : n);
+          };
+
+          // Trim out all falsy values from an array.
+          _.compact = function (array) {
+            return _.filter(array, Boolean);
+          };
+
+          // Internal implementation of a recursive `flatten` function.
+          var flatten = function flatten(input, shallow, strict, output) {
+            output = output || [];
+            var idx = output.length;
+            for (var i = 0, length = getLength(input); i < length; i++) {
+              var value = input[i];
+              if (isArrayLike(value) && (_.isArray(value) || _.isArguments(value))) {
+                // Flatten current level of array or arguments object.
+                if (shallow) {
+                  var j = 0,
+                      len = value.length;
+                  while (j < len) {
+                    output[idx++] = value[j++];
+                  }
+                } else {
+                  flatten(value, shallow, strict, output);
+                  idx = output.length;
+                }
+              } else if (!strict) {
+                output[idx++] = value;
+              }
+            }
+            return output;
+          };
+
+          // Flatten out an array, either recursively (by default), or just one level.
+          _.flatten = function (array, shallow) {
+            return flatten(array, shallow, false);
+          };
+
+          // Return a version of the array that does not contain the specified value(s).
+          _.without = restArguments(function (array, otherArrays) {
+            return _.difference(array, otherArrays);
+          });
+
+          // Produce a duplicate-free version of the array. If the array has already
+          // been sorted, you have the option of using a faster algorithm.
+          // The faster algorithm will not work with an iteratee if the iteratee
+          // is not a one-to-one function, so providing an iteratee will disable
+          // the faster algorithm.
+          // Aliased as `unique`.
+          _.uniq = _.unique = function (array, isSorted, iteratee, context) {
+            if (!_.isBoolean(isSorted)) {
+              context = iteratee;
+              iteratee = isSorted;
+              isSorted = false;
+            }
+            if (iteratee != null) iteratee = cb(iteratee, context);
+            var result = [];
+            var seen = [];
+            for (var i = 0, length = getLength(array); i < length; i++) {
+              var value = array[i],
+                  computed = iteratee ? iteratee(value, i, array) : value;
+              if (isSorted && !iteratee) {
+                if (!i || seen !== computed) result.push(value);
+                seen = computed;
+              } else if (iteratee) {
+                if (!_.contains(seen, computed)) {
+                  seen.push(computed);
+                  result.push(value);
+                }
+              } else if (!_.contains(result, value)) {
+                result.push(value);
+              }
+            }
+            return result;
+          };
+
+          // Produce an array that contains the union: each distinct element from all of
+          // the passed-in arrays.
+          _.union = restArguments(function (arrays) {
+            return _.uniq(flatten(arrays, true, true));
+          });
+
+          // Produce an array that contains every item shared between all the
+          // passed-in arrays.
+          _.intersection = function (array) {
+            var result = [];
+            var argsLength = arguments.length;
+            for (var i = 0, length = getLength(array); i < length; i++) {
+              var item = array[i];
+              if (_.contains(result, item)) continue;
+              var j;
+              for (j = 1; j < argsLength; j++) {
+                if (!_.contains(arguments[j], item)) break;
+              }
+              if (j === argsLength) result.push(item);
+            }
+            return result;
+          };
+
+          // Take the difference between one array and a number of other arrays.
+          // Only the elements present in just the first array will remain.
+          _.difference = restArguments(function (array, rest) {
+            rest = flatten(rest, true, true);
+            return _.filter(array, function (value) {
+              return !_.contains(rest, value);
+            });
+          });
+
+          // Complement of _.zip. Unzip accepts an array of arrays and groups
+          // each array's elements on shared indices.
+          _.unzip = function (array) {
+            var length = array && _.max(array, getLength).length || 0;
+            var result = Array(length);
+
+            for (var index = 0; index < length; index++) {
+              result[index] = _.pluck(array, index);
+            }
+            return result;
+          };
+
+          // Zip together multiple lists into a single array -- elements that share
+          // an index go together.
+          _.zip = restArguments(_.unzip);
+
+          // Converts lists into objects. Pass either a single array of `[key, value]`
+          // pairs, or two parallel arrays of the same length -- one of keys, and one of
+          // the corresponding values. Passing by pairs is the reverse of _.pairs.
+          _.object = function (list, values) {
+            var result = {};
+            for (var i = 0, length = getLength(list); i < length; i++) {
+              if (values) {
+                result[list[i]] = values[i];
+              } else {
+                result[list[i][0]] = list[i][1];
+              }
+            }
+            return result;
+          };
+
+          // Generator function to create the findIndex and findLastIndex functions.
+          var createPredicateIndexFinder = function createPredicateIndexFinder(dir) {
+            return function (array, predicate, context) {
+              predicate = cb(predicate, context);
+              var length = getLength(array);
+              var index = dir > 0 ? 0 : length - 1;
+              for (; index >= 0 && index < length; index += dir) {
+                if (predicate(array[index], index, array)) return index;
+              }
+              return -1;
+            };
+          };
+
+          // Returns the first index on an array-like that passes a predicate test.
+          _.findIndex = createPredicateIndexFinder(1);
+          _.findLastIndex = createPredicateIndexFinder(-1);
+
+          // Use a comparator function to figure out the smallest index at which
+          // an object should be inserted so as to maintain order. Uses binary search.
+          _.sortedIndex = function (array, obj, iteratee, context) {
+            iteratee = cb(iteratee, context, 1);
+            var value = iteratee(obj);
+            var low = 0,
+                high = getLength(array);
+            while (low < high) {
+              var mid = Math.floor((low + high) / 2);
+              if (iteratee(array[mid]) < value) low = mid + 1;else high = mid;
+            }
+            return low;
+          };
+
+          // Generator function to create the indexOf and lastIndexOf functions.
+          var createIndexFinder = function createIndexFinder(dir, predicateFind, sortedIndex) {
+            return function (array, item, idx) {
+              var i = 0,
+                  length = getLength(array);
+              if (typeof idx == 'number') {
+                if (dir > 0) {
+                  i = idx >= 0 ? idx : Math.max(idx + length, i);
+                } else {
+                  length = idx >= 0 ? Math.min(idx + 1, length) : idx + length + 1;
+                }
+              } else if (sortedIndex && idx && length) {
+                idx = sortedIndex(array, item);
+                return array[idx] === item ? idx : -1;
+              }
+              if (item !== item) {
+                idx = predicateFind(slice.call(array, i, length), _.isNaN);
+                return idx >= 0 ? idx + i : -1;
+              }
+              for (idx = dir > 0 ? i : length - 1; idx >= 0 && idx < length; idx += dir) {
+                if (array[idx] === item) return idx;
+              }
+              return -1;
+            };
+          };
+
+          // Return the position of the first occurrence of an item in an array,
+          // or -1 if the item is not included in the array.
+          // If the array is large and already in sort order, pass `true`
+          // for **isSorted** to use binary search.
+          _.indexOf = createIndexFinder(1, _.findIndex, _.sortedIndex);
+          _.lastIndexOf = createIndexFinder(-1, _.findLastIndex);
+
+          // Generate an integer Array containing an arithmetic progression. A port of
+          // the native Python `range()` function. See
+          // [the Python documentation](http://docs.python.org/library/functions.html#range).
+          _.range = function (start, stop, step) {
+            if (stop == null) {
+              stop = start || 0;
+              start = 0;
+            }
+            if (!step) {
+              step = stop < start ? -1 : 1;
+            }
+
+            var length = Math.max(Math.ceil((stop - start) / step), 0);
+            var range = Array(length);
+
+            for (var idx = 0; idx < length; idx++, start += step) {
+              range[idx] = start;
+            }
+
+            return range;
+          };
+
+          // Chunk a single array into multiple arrays, each containing `count` or fewer
+          // items.
+          _.chunk = function (array, count) {
+            if (count == null || count < 1) return [];
+            var result = [];
+            var i = 0,
+                length = array.length;
+            while (i < length) {
+              result.push(slice.call(array, i, i += count));
+            }
+            return result;
+          };
+
+          // Function (ahem) Functions
+          // ------------------
+
+          // Determines whether to execute a function as a constructor
+          // or a normal function with the provided arguments.
+          var executeBound = function executeBound(sourceFunc, boundFunc, context, callingContext, args) {
+            if (!(callingContext instanceof boundFunc)) return sourceFunc.apply(context, args);
+            var self = baseCreate(sourceFunc.prototype);
+            var result = sourceFunc.apply(self, args);
+            if (_.isObject(result)) return result;
+            return self;
+          };
+
+          // Create a function bound to a given object (assigning `this`, and arguments,
+          // optionally). Delegates to **ECMAScript 5**'s native `Function.bind` if
+          // available.
+          _.bind = restArguments(function (func, context, args) {
+            if (!_.isFunction(func)) throw new TypeError('Bind must be called on a function');
+            var bound = restArguments(function (callArgs) {
+              return executeBound(func, bound, context, this, args.concat(callArgs));
+            });
+            return bound;
+          });
+
+          // Partially apply a function by creating a version that has had some of its
+          // arguments pre-filled, without changing its dynamic `this` context. _ acts
+          // as a placeholder by default, allowing any combination of arguments to be
+          // pre-filled. Set `_.partial.placeholder` for a custom placeholder argument.
+          _.partial = restArguments(function (func, boundArgs) {
+            var placeholder = _.partial.placeholder;
+            var bound = function bound() {
+              var position = 0,
+                  length = boundArgs.length;
+              var args = Array(length);
+              for (var i = 0; i < length; i++) {
+                args[i] = boundArgs[i] === placeholder ? arguments[position++] : boundArgs[i];
+              }
+              while (position < arguments.length) {
+                args.push(arguments[position++]);
+              }return executeBound(func, bound, this, this, args);
+            };
+            return bound;
+          });
+
+          _.partial.placeholder = _;
+
+          // Bind a number of an object's methods to that object. Remaining arguments
+          // are the method names to be bound. Useful for ensuring that all callbacks
+          // defined on an object belong to it.
+          _.bindAll = restArguments(function (obj, keys) {
+            keys = flatten(keys, false, false);
+            var index = keys.length;
+            if (index < 1) throw new Error('bindAll must be passed function names');
+            while (index--) {
+              var key = keys[index];
+              obj[key] = _.bind(obj[key], obj);
+            }
+          });
+
+          // Memoize an expensive function by storing its results.
+          _.memoize = function (func, hasher) {
+            var memoize = function memoize(key) {
+              var cache = memoize.cache;
+              var address = '' + (hasher ? hasher.apply(this, arguments) : key);
+              if (!has(cache, address)) cache[address] = func.apply(this, arguments);
+              return cache[address];
+            };
+            memoize.cache = {};
+            return memoize;
+          };
+
+          // Delays a function for the given number of milliseconds, and then calls
+          // it with the arguments supplied.
+          _.delay = restArguments(function (func, wait, args) {
+            return setTimeout(function () {
+              return func.apply(null, args);
+            }, wait);
+          });
+
+          // Defers a function, scheduling it to run after the current call stack has
+          // cleared.
+          _.defer = _.partial(_.delay, _, 1);
+
+          // Returns a function, that, when invoked, will only be triggered at most once
+          // during a given window of time. Normally, the throttled function will run
+          // as much as it can, without ever going more than once per `wait` duration;
+          // but if you'd like to disable the execution on the leading edge, pass
+          // `{leading: false}`. To disable execution on the trailing edge, ditto.
+          _.throttle = function (func, wait, options) {
+            var timeout, context, args, result;
+            var previous = 0;
+            if (!options) options = {};
+
+            var later = function later() {
+              previous = options.leading === false ? 0 : _.now();
+              timeout = null;
+              result = func.apply(context, args);
+              if (!timeout) context = args = null;
+            };
+
+            var throttled = function throttled() {
+              var now = _.now();
+              if (!previous && options.leading === false) previous = now;
+              var remaining = wait - (now - previous);
+              context = this;
+              args = arguments;
+              if (remaining <= 0 || remaining > wait) {
+                if (timeout) {
+                  clearTimeout(timeout);
+                  timeout = null;
+                }
+                previous = now;
+                result = func.apply(context, args);
+                if (!timeout) context = args = null;
+              } else if (!timeout && options.trailing !== false) {
+                timeout = setTimeout(later, remaining);
+              }
+              return result;
+            };
+
+            throttled.cancel = function () {
+              clearTimeout(timeout);
+              previous = 0;
+              timeout = context = args = null;
+            };
+
+            return throttled;
+          };
+
+          // Returns a function, that, as long as it continues to be invoked, will not
+          // be triggered. The function will be called after it stops being called for
+          // N milliseconds. If `immediate` is passed, trigger the function on the
+          // leading edge, instead of the trailing.
+          _.debounce = function (func, wait, immediate) {
+            var timeout, result;
+
+            var later = function later(context, args) {
+              timeout = null;
+              if (args) result = func.apply(context, args);
+            };
+
+            var debounced = restArguments(function (args) {
+              if (timeout) clearTimeout(timeout);
+              if (immediate) {
+                var callNow = !timeout;
+                timeout = setTimeout(later, wait);
+                if (callNow) result = func.apply(this, args);
+              } else {
+                timeout = _.delay(later, wait, this, args);
+              }
+
+              return result;
+            });
+
+            debounced.cancel = function () {
+              clearTimeout(timeout);
+              timeout = null;
+            };
+
+            return debounced;
+          };
+
+          // Returns the first function passed as an argument to the second,
+          // allowing you to adjust arguments, run code before and after, and
+          // conditionally execute the original function.
+          _.wrap = function (func, wrapper) {
+            return _.partial(wrapper, func);
+          };
+
+          // Returns a negated version of the passed-in predicate.
+          _.negate = function (predicate) {
+            return function () {
+              return !predicate.apply(this, arguments);
+            };
+          };
+
+          // Returns a function that is the composition of a list of functions, each
+          // consuming the return value of the function that follows.
+          _.compose = function () {
+            var args = arguments;
+            var start = args.length - 1;
+            return function () {
+              var i = start;
+              var result = args[start].apply(this, arguments);
+              while (i--) {
+                result = args[i].call(this, result);
+              }return result;
+            };
+          };
+
+          // Returns a function that will only be executed on and after the Nth call.
+          _.after = function (times, func) {
+            return function () {
+              if (--times < 1) {
+                return func.apply(this, arguments);
+              }
+            };
+          };
+
+          // Returns a function that will only be executed up to (but not including) the Nth call.
+          _.before = function (times, func) {
+            var memo;
+            return function () {
+              if (--times > 0) {
+                memo = func.apply(this, arguments);
+              }
+              if (times <= 1) func = null;
+              return memo;
+            };
+          };
+
+          // Returns a function that will be executed at most one time, no matter how
+          // often you call it. Useful for lazy initialization.
+          _.once = _.partial(_.before, 2);
+
+          _.restArguments = restArguments;
+
+          // Object Functions
+          // ----------------
+
+          // Keys in IE < 9 that won't be iterated by `for key in ...` and thus missed.
+          var hasEnumBug = !{ toString: null }.propertyIsEnumerable('toString');
+          var nonEnumerableProps = ['valueOf', 'isPrototypeOf', 'toString', 'propertyIsEnumerable', 'hasOwnProperty', 'toLocaleString'];
+
+          var collectNonEnumProps = function collectNonEnumProps(obj, keys) {
+            var nonEnumIdx = nonEnumerableProps.length;
+            var constructor = obj.constructor;
+            var proto = _.isFunction(constructor) && constructor.prototype || ObjProto;
+
+            // Constructor is a special case.
+            var prop = 'constructor';
+            if (has(obj, prop) && !_.contains(keys, prop)) keys.push(prop);
+
+            while (nonEnumIdx--) {
+              prop = nonEnumerableProps[nonEnumIdx];
+              if (prop in obj && obj[prop] !== proto[prop] && !_.contains(keys, prop)) {
+                keys.push(prop);
+              }
+            }
+          };
+
+          // Retrieve the names of an object's own properties.
+          // Delegates to **ECMAScript 5**'s native `Object.keys`.
+          _.keys = function (obj) {
+            if (!_.isObject(obj)) return [];
+            if (nativeKeys) return nativeKeys(obj);
+            var keys = [];
+            for (var key in obj) {
+              if (has(obj, key)) keys.push(key);
+            } // Ahem, IE < 9.
+            if (hasEnumBug) collectNonEnumProps(obj, keys);
+            return keys;
+          };
+
+          // Retrieve all the property names of an object.
+          _.allKeys = function (obj) {
+            if (!_.isObject(obj)) return [];
+            var keys = [];
+            for (var key in obj) {
+              keys.push(key);
+            } // Ahem, IE < 9.
+            if (hasEnumBug) collectNonEnumProps(obj, keys);
+            return keys;
+          };
+
+          // Retrieve the values of an object's properties.
+          _.values = function (obj) {
+            var keys = _.keys(obj);
+            var length = keys.length;
+            var values = Array(length);
+            for (var i = 0; i < length; i++) {
+              values[i] = obj[keys[i]];
+            }
+            return values;
+          };
+
+          // Returns the results of applying the iteratee to each element of the object.
+          // In contrast to _.map it returns an object.
+          _.mapObject = function (obj, iteratee, context) {
+            iteratee = cb(iteratee, context);
+            var keys = _.keys(obj),
+                length = keys.length,
+                results = {};
+            for (var index = 0; index < length; index++) {
+              var currentKey = keys[index];
+              results[currentKey] = iteratee(obj[currentKey], currentKey, obj);
+            }
+            return results;
+          };
+
+          // Convert an object into a list of `[key, value]` pairs.
+          // The opposite of _.object.
+          _.pairs = function (obj) {
+            var keys = _.keys(obj);
+            var length = keys.length;
+            var pairs = Array(length);
+            for (var i = 0; i < length; i++) {
+              pairs[i] = [keys[i], obj[keys[i]]];
+            }
+            return pairs;
+          };
+
+          // Invert the keys and values of an object. The values must be serializable.
+          _.invert = function (obj) {
+            var result = {};
+            var keys = _.keys(obj);
+            for (var i = 0, length = keys.length; i < length; i++) {
+              result[obj[keys[i]]] = keys[i];
+            }
+            return result;
+          };
+
+          // Return a sorted list of the function names available on the object.
+          // Aliased as `methods`.
+          _.functions = _.methods = function (obj) {
+            var names = [];
+            for (var key in obj) {
+              if (_.isFunction(obj[key])) names.push(key);
+            }
+            return names.sort();
+          };
+
+          // An internal function for creating assigner functions.
+          var createAssigner = function createAssigner(keysFunc, defaults) {
+            return function (obj) {
+              var length = arguments.length;
+              if (defaults) obj = Object(obj);
+              if (length < 2 || obj == null) return obj;
+              for (var index = 1; index < length; index++) {
+                var source = arguments[index],
+                    keys = keysFunc(source),
+                    l = keys.length;
+                for (var i = 0; i < l; i++) {
+                  var key = keys[i];
+                  if (!defaults || obj[key] === void 0) obj[key] = source[key];
+                }
+              }
+              return obj;
+            };
+          };
+
+          // Extend a given object with all the properties in passed-in object(s).
+          _.extend = createAssigner(_.allKeys);
+
+          // Assigns a given object with all the own properties in the passed-in object(s).
+          // (https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object/assign)
+          _.extendOwn = _.assign = createAssigner(_.keys);
+
+          // Returns the first key on an object that passes a predicate test.
+          _.findKey = function (obj, predicate, context) {
+            predicate = cb(predicate, context);
+            var keys = _.keys(obj),
+                key;
+            for (var i = 0, length = keys.length; i < length; i++) {
+              key = keys[i];
+              if (predicate(obj[key], key, obj)) return key;
+            }
+          };
+
+          // Internal pick helper function to determine if `obj` has key `key`.
+          var keyInObj = function keyInObj(value, key, obj) {
+            return key in obj;
+          };
+
+          // Return a copy of the object only containing the whitelisted properties.
+          _.pick = restArguments(function (obj, keys) {
+            var result = {},
+                iteratee = keys[0];
+            if (obj == null) return result;
+            if (_.isFunction(iteratee)) {
+              if (keys.length > 1) iteratee = optimizeCb(iteratee, keys[1]);
+              keys = _.allKeys(obj);
+            } else {
+              iteratee = keyInObj;
+              keys = flatten(keys, false, false);
+              obj = Object(obj);
+            }
+            for (var i = 0, length = keys.length; i < length; i++) {
+              var key = keys[i];
+              var value = obj[key];
+              if (iteratee(value, key, obj)) result[key] = value;
+            }
+            return result;
+          });
+
+          // Return a copy of the object without the blacklisted properties.
+          _.omit = restArguments(function (obj, keys) {
+            var iteratee = keys[0],
+                context;
+            if (_.isFunction(iteratee)) {
+              iteratee = _.negate(iteratee);
+              if (keys.length > 1) context = keys[1];
+            } else {
+              keys = _.map(flatten(keys, false, false), String);
+              iteratee = function iteratee(value, key) {
+                return !_.contains(keys, key);
+              };
+            }
+            return _.pick(obj, iteratee, context);
+          });
+
+          // Fill in a given object with default properties.
+          _.defaults = createAssigner(_.allKeys, true);
+
+          // Creates an object that inherits from the given prototype object.
+          // If additional properties are provided then they will be added to the
+          // created object.
+          _.create = function (prototype, props) {
+            var result = baseCreate(prototype);
+            if (props) _.extendOwn(result, props);
+            return result;
+          };
+
+          // Create a (shallow-cloned) duplicate of an object.
+          _.clone = function (obj) {
+            if (!_.isObject(obj)) return obj;
+            return _.isArray(obj) ? obj.slice() : _.extend({}, obj);
+          };
+
+          // Invokes interceptor with the obj, and then returns obj.
+          // The primary purpose of this method is to "tap into" a method chain, in
+          // order to perform operations on intermediate results within the chain.
+          _.tap = function (obj, interceptor) {
+            interceptor(obj);
+            return obj;
+          };
+
+          // Returns whether an object has a given set of `key:value` pairs.
+          _.isMatch = function (object, attrs) {
+            var keys = _.keys(attrs),
+                length = keys.length;
+            if (object == null) return !length;
+            var obj = Object(object);
+            for (var i = 0; i < length; i++) {
+              var key = keys[i];
+              if (attrs[key] !== obj[key] || !(key in obj)) return false;
+            }
+            return true;
+          };
+
+          // Internal recursive comparison function for `isEqual`.
+          var eq, deepEq;
+          eq = function eq(a, b, aStack, bStack) {
+            // Identical objects are equal. `0 === -0`, but they aren't identical.
+            // See the [Harmony `egal` proposal](http://wiki.ecmascript.org/doku.php?id=harmony:egal).
+            if (a === b) return a !== 0 || 1 / a === 1 / b;
+            // `null` or `undefined` only equal to itself (strict comparison).
+            if (a == null || b == null) return false;
+            // `NaN`s are equivalent, but non-reflexive.
+            if (a !== a) return b !== b;
+            // Exhaust primitive checks
+            var type = typeof a === "undefined" ? "undefined" : _typeof(a);
+            if (type !== 'function' && type !== 'object' && (typeof b === "undefined" ? "undefined" : _typeof(b)) != 'object') return false;
+            return deepEq(a, b, aStack, bStack);
+          };
+
+          // Internal recursive comparison function for `isEqual`.
+          deepEq = function deepEq(a, b, aStack, bStack) {
+            // Unwrap any wrapped objects.
+            if (a instanceof _) a = a._wrapped;
+            if (b instanceof _) b = b._wrapped;
+            // Compare `[[Class]]` names.
+            var className = toString.call(a);
+            if (className !== toString.call(b)) return false;
+            switch (className) {
+              // Strings, numbers, regular expressions, dates, and booleans are compared by value.
+              case '[object RegExp]':
+              // RegExps are coerced to strings for comparison (Note: '' + /a/i === '/a/i')
+              case '[object String]':
+                // Primitives and their corresponding object wrappers are equivalent; thus, `"5"` is
+                // equivalent to `new String("5")`.
+                return '' + a === '' + b;
+              case '[object Number]':
+                // `NaN`s are equivalent, but non-reflexive.
+                // Object(NaN) is equivalent to NaN.
+                if (+a !== +a) return +b !== +b;
+                // An `egal` comparison is performed for other numeric values.
+                return +a === 0 ? 1 / +a === 1 / b : +a === +b;
+              case '[object Date]':
+              case '[object Boolean]':
+                // Coerce dates and booleans to numeric primitive values. Dates are compared by their
+                // millisecond representations. Note that invalid dates with millisecond representations
+                // of `NaN` are not equivalent.
+                return +a === +b;
+              case '[object Symbol]':
+                return SymbolProto.valueOf.call(a) === SymbolProto.valueOf.call(b);
+            }
+
+            var areArrays = className === '[object Array]';
+            if (!areArrays) {
+              if ((typeof a === "undefined" ? "undefined" : _typeof(a)) != 'object' || (typeof b === "undefined" ? "undefined" : _typeof(b)) != 'object') return false;
+
+              // Objects with different constructors are not equivalent, but `Object`s or `Array`s
+              // from different frames are.
+              var aCtor = a.constructor,
+                  bCtor = b.constructor;
+              if (aCtor !== bCtor && !(_.isFunction(aCtor) && aCtor instanceof aCtor && _.isFunction(bCtor) && bCtor instanceof bCtor) && 'constructor' in a && 'constructor' in b) {
+                return false;
+              }
+            }
+            // Assume equality for cyclic structures. The algorithm for detecting cyclic
+            // structures is adapted from ES 5.1 section 15.12.3, abstract operation `JO`.
+
+            // Initializing stack of traversed objects.
+            // It's done here since we only need them for objects and arrays comparison.
+            aStack = aStack || [];
+            bStack = bStack || [];
+            var length = aStack.length;
+            while (length--) {
+              // Linear search. Performance is inversely proportional to the number of
+              // unique nested structures.
+              if (aStack[length] === a) return bStack[length] === b;
+            }
+
+            // Add the first object to the stack of traversed objects.
+            aStack.push(a);
+            bStack.push(b);
+
+            // Recursively compare objects and arrays.
+            if (areArrays) {
+              // Compare array lengths to determine if a deep comparison is necessary.
+              length = a.length;
+              if (length !== b.length) return false;
+              // Deep compare the contents, ignoring non-numeric properties.
+              while (length--) {
+                if (!eq(a[length], b[length], aStack, bStack)) return false;
+              }
+            } else {
+              // Deep compare objects.
+              var keys = _.keys(a),
+                  key;
+              length = keys.length;
+              // Ensure that both objects contain the same number of properties before comparing deep equality.
+              if (_.keys(b).length !== length) return false;
+              while (length--) {
+                // Deep compare each member
+                key = keys[length];
+                if (!(has(b, key) && eq(a[key], b[key], aStack, bStack))) return false;
+              }
+            }
+            // Remove the first object from the stack of traversed objects.
+            aStack.pop();
+            bStack.pop();
+            return true;
+          };
+
+          // Perform a deep comparison to check if two objects are equal.
+          _.isEqual = function (a, b) {
+            return eq(a, b);
+          };
+
+          // Is a given array, string, or object empty?
+          // An "empty" object has no enumerable own-properties.
+          _.isEmpty = function (obj) {
+            if (obj == null) return true;
+            if (isArrayLike(obj) && (_.isArray(obj) || _.isString(obj) || _.isArguments(obj))) return obj.length === 0;
+            return _.keys(obj).length === 0;
+          };
+
+          // Is a given value a DOM element?
+          _.isElement = function (obj) {
+            return !!(obj && obj.nodeType === 1);
+          };
+
+          // Is a given value an array?
+          // Delegates to ECMA5's native Array.isArray
+          _.isArray = nativeIsArray || function (obj) {
+            return toString.call(obj) === '[object Array]';
+          };
+
+          // Is a given variable an object?
+          _.isObject = function (obj) {
+            var type = typeof obj === "undefined" ? "undefined" : _typeof(obj);
+            return type === 'function' || type === 'object' && !!obj;
+          };
+
+          // Add some isType methods: isArguments, isFunction, isString, isNumber, isDate, isRegExp, isError, isMap, isWeakMap, isSet, isWeakSet.
+          _.each(['Arguments', 'Function', 'String', 'Number', 'Date', 'RegExp', 'Error', 'Symbol', 'Map', 'WeakMap', 'Set', 'WeakSet'], function (name) {
+            _['is' + name] = function (obj) {
+              return toString.call(obj) === '[object ' + name + ']';
+            };
+          });
+
+          // Define a fallback version of the method in browsers (ahem, IE < 9), where
+          // there isn't any inspectable "Arguments" type.
+          if (!_.isArguments(arguments)) {
+            _.isArguments = function (obj) {
+              return has(obj, 'callee');
+            };
+          }
+
+          // Optimize `isFunction` if appropriate. Work around some typeof bugs in old v8,
+          // IE 11 (#1621), Safari 8 (#1929), and PhantomJS (#2236).
+          var nodelist = root.document && root.document.childNodes;
+          if (typeof /./ != 'function' && (typeof Int8Array === "undefined" ? "undefined" : _typeof(Int8Array)) != 'object' && typeof nodelist != 'function') {
+            _.isFunction = function (obj) {
+              return typeof obj == 'function' || false;
+            };
+          }
+
+          // Is a given object a finite number?
+          _.isFinite = function (obj) {
+            return !_.isSymbol(obj) && isFinite(obj) && !isNaN(parseFloat(obj));
+          };
+
+          // Is the given value `NaN`?
+          _.isNaN = function (obj) {
+            return _.isNumber(obj) && isNaN(obj);
+          };
+
+          // Is a given value a boolean?
+          _.isBoolean = function (obj) {
+            return obj === true || obj === false || toString.call(obj) === '[object Boolean]';
+          };
+
+          // Is a given value equal to null?
+          _.isNull = function (obj) {
+            return obj === null;
+          };
+
+          // Is a given variable undefined?
+          _.isUndefined = function (obj) {
+            return obj === void 0;
+          };
+
+          // Shortcut function for checking if an object has a given property directly
+          // on itself (in other words, not on a prototype).
+          _.has = function (obj, path) {
+            if (!_.isArray(path)) {
+              return has(obj, path);
+            }
+            var length = path.length;
+            for (var i = 0; i < length; i++) {
+              var key = path[i];
+              if (obj == null || !hasOwnProperty.call(obj, key)) {
+                return false;
+              }
+              obj = obj[key];
+            }
+            return !!length;
+          };
+
+          // Utility Functions
+          // -----------------
+
+          // Run Underscore.js in *noConflict* mode, returning the `_` variable to its
+          // previous owner. Returns a reference to the Underscore object.
+          _.noConflict = function () {
+            root._ = previousUnderscore;
+            return this;
+          };
+
+          // Keep the identity function around for default iteratees.
+          _.identity = function (value) {
+            return value;
+          };
+
+          // Predicate-generating functions. Often useful outside of Underscore.
+          _.constant = function (value) {
+            return function () {
+              return value;
+            };
+          };
+
+          _.noop = function () {};
+
+          // Creates a function that, when passed an object, will traverse that object’s
+          // properties down the given `path`, specified as an array of keys or indexes.
+          _.property = function (path) {
+            if (!_.isArray(path)) {
+              return shallowProperty(path);
+            }
+            return function (obj) {
+              return deepGet(obj, path);
+            };
+          };
+
+          // Generates a function for a given object that returns a given property.
+          _.propertyOf = function (obj) {
+            if (obj == null) {
+              return function () {};
+            }
+            return function (path) {
+              return !_.isArray(path) ? obj[path] : deepGet(obj, path);
+            };
+          };
+
+          // Returns a predicate for checking whether an object has a given set of
+          // `key:value` pairs.
+          _.matcher = _.matches = function (attrs) {
+            attrs = _.extendOwn({}, attrs);
+            return function (obj) {
+              return _.isMatch(obj, attrs);
+            };
+          };
+
+          // Run a function **n** times.
+          _.times = function (n, iteratee, context) {
+            var accum = Array(Math.max(0, n));
+            iteratee = optimizeCb(iteratee, context, 1);
+            for (var i = 0; i < n; i++) {
+              accum[i] = iteratee(i);
+            }return accum;
+          };
+
+          // Return a random integer between min and max (inclusive).
+          _.random = function (min, max) {
+            if (max == null) {
+              max = min;
+              min = 0;
+            }
+            return min + Math.floor(Math.random() * (max - min + 1));
+          };
+
+          // A (possibly faster) way to get the current timestamp as an integer.
+          _.now = Date.now || function () {
+            return new Date().getTime();
+          };
+
+          // List of HTML entities for escaping.
+          var escapeMap = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#x27;',
+            '`': '&#x60;'
+          };
+          var unescapeMap = _.invert(escapeMap);
+
+          // Functions for escaping and unescaping strings to/from HTML interpolation.
+          var createEscaper = function createEscaper(map) {
+            var escaper = function escaper(match) {
+              return map[match];
+            };
+            // Regexes for identifying a key that needs to be escaped.
+            var source = '(?:' + _.keys(map).join('|') + ')';
+            var testRegexp = RegExp(source);
+            var replaceRegexp = RegExp(source, 'g');
+            return function (string) {
+              string = string == null ? '' : '' + string;
+              return testRegexp.test(string) ? string.replace(replaceRegexp, escaper) : string;
+            };
+          };
+          _.escape = createEscaper(escapeMap);
+          _.unescape = createEscaper(unescapeMap);
+
+          // Traverses the children of `obj` along `path`. If a child is a function, it
+          // is invoked with its parent as context. Returns the value of the final
+          // child, or `fallback` if any child is undefined.
+          _.result = function (obj, path, fallback) {
+            if (!_.isArray(path)) path = [path];
+            var length = path.length;
+            if (!length) {
+              return _.isFunction(fallback) ? fallback.call(obj) : fallback;
+            }
+            for (var i = 0; i < length; i++) {
+              var prop = obj == null ? void 0 : obj[path[i]];
+              if (prop === void 0) {
+                prop = fallback;
+                i = length; // Ensure we don't continue iterating.
+              }
+              obj = _.isFunction(prop) ? prop.call(obj) : prop;
+            }
+            return obj;
+          };
+
+          // Generate a unique integer id (unique within the entire client session).
+          // Useful for temporary DOM ids.
+          var idCounter = 0;
+          _.uniqueId = function (prefix) {
+            var id = ++idCounter + '';
+            return prefix ? prefix + id : id;
+          };
+
+          // By default, Underscore uses ERB-style template delimiters, change the
+          // following template settings to use alternative delimiters.
+          _.templateSettings = {
+            evaluate: /<%([\s\S]+?)%>/g,
+            interpolate: /<%=([\s\S]+?)%>/g,
+            escape: /<%-([\s\S]+?)%>/g
+          };
+
+          // When customizing `templateSettings`, if you don't want to define an
+          // interpolation, evaluation or escaping regex, we need one that is
+          // guaranteed not to match.
+          var noMatch = /(.)^/;
+
+          // Certain characters need to be escaped so that they can be put into a
+          // string literal.
+          var escapes = {
+            "'": "'",
+            '\\': '\\',
+            '\r': 'r',
+            '\n': 'n',
+            "\u2028": 'u2028',
+            "\u2029": 'u2029'
+          };
+
+          var escapeRegExp = /\\|'|\r|\n|\u2028|\u2029/g;
+
+          var escapeChar = function escapeChar(match) {
+            return '\\' + escapes[match];
+          };
+
+          // JavaScript micro-templating, similar to John Resig's implementation.
+          // Underscore templating handles arbitrary delimiters, preserves whitespace,
+          // and correctly escapes quotes within interpolated code.
+          // NB: `oldSettings` only exists for backwards compatibility.
+          _.template = function (text, settings, oldSettings) {
+            if (!settings && oldSettings) settings = oldSettings;
+            settings = _.defaults({}, settings, _.templateSettings);
+
+            // Combine delimiters into one regular expression via alternation.
+            var matcher = RegExp([(settings.escape || noMatch).source, (settings.interpolate || noMatch).source, (settings.evaluate || noMatch).source].join('|') + '|$', 'g');
+
+            // Compile the template source, escaping string literals appropriately.
+            var index = 0;
+            var source = "__p+='";
+            text.replace(matcher, function (match, escape, interpolate, evaluate, offset) {
+              source += text.slice(index, offset).replace(escapeRegExp, escapeChar);
+              index = offset + match.length;
+
+              if (escape) {
+                source += "'+\n((__t=(" + escape + "))==null?'':_.escape(__t))+\n'";
+              } else if (interpolate) {
+                source += "'+\n((__t=(" + interpolate + "))==null?'':__t)+\n'";
+              } else if (evaluate) {
+                source += "';\n" + evaluate + "\n__p+='";
+              }
+
+              // Adobe VMs need the match returned to produce the correct offset.
+              return match;
+            });
+            source += "';\n";
+
+            // If a variable is not specified, place data values in local scope.
+            if (!settings.variable) source = 'with(obj||{}){\n' + source + '}\n';
+
+            source = "var __t,__p='',__j=Array.prototype.join," + "print=function(){__p+=__j.call(arguments,'');};\n" + source + 'return __p;\n';
+
+            var render;
+            try {
+              render = new Function(settings.variable || 'obj', '_', source);
+            } catch (e) {
+              e.source = source;
+              throw e;
+            }
+
+            var template = function template(data) {
+              return render.call(this, data, _);
+            };
+
+            // Provide the compiled source as a convenience for precompilation.
+            var argument = settings.variable || 'obj';
+            template.source = 'function(' + argument + '){\n' + source + '}';
+
+            return template;
+          };
+
+          // Add a "chain" function. Start chaining a wrapped Underscore object.
+          _.chain = function (obj) {
+            var instance = _(obj);
+            instance._chain = true;
+            return instance;
+          };
+
+          // OOP
+          // ---------------
+          // If Underscore is called as a function, it returns a wrapped object that
+          // can be used OO-style. This wrapper holds altered versions of all the
+          // underscore functions. Wrapped objects may be chained.
+
+          // Helper function to continue chaining intermediate results.
+          var chainResult = function chainResult(instance, obj) {
+            return instance._chain ? _(obj).chain() : obj;
+          };
+
+          // Add your own custom functions to the Underscore object.
+          _.mixin = function (obj) {
+            _.each(_.functions(obj), function (name) {
+              var func = _[name] = obj[name];
+              _.prototype[name] = function () {
+                var args = [this._wrapped];
+                push.apply(args, arguments);
+                return chainResult(this, func.apply(_, args));
+              };
+            });
+            return _;
+          };
+
+          // Add all of the Underscore functions to the wrapper object.
+          _.mixin(_);
+
+          // Add all mutator Array functions to the wrapper.
+          _.each(['pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift'], function (name) {
+            var method = ArrayProto[name];
+            _.prototype[name] = function () {
+              var obj = this._wrapped;
+              method.apply(obj, arguments);
+              if ((name === 'shift' || name === 'splice') && obj.length === 0) delete obj[0];
+              return chainResult(this, obj);
+            };
+          });
+
+          // Add all accessor Array functions to the wrapper.
+          _.each(['concat', 'join', 'slice'], function (name) {
+            var method = ArrayProto[name];
+            _.prototype[name] = function () {
+              return chainResult(this, method.apply(this._wrapped, arguments));
+            };
+          });
+
+          // Extracts the result from a wrapped and chained object.
+          _.prototype.value = function () {
+            return this._wrapped;
+          };
+
+          // Provide unwrapping proxy for some methods used in engine operations
+          // such as arithmetic and JSON stringification.
+          _.prototype.valueOf = _.prototype.toJSON = _.prototype.value;
+
+          _.prototype.toString = function () {
+            return String(this._wrapped);
+          };
+
+          // AMD registration happens at the end for compatibility with AMD loaders
+          // that may not enforce next-turn semantics on modules. Even though general
+          // practice for AMD registration is to be anonymous, underscore registers
+          // as a named module because, like jQuery, it is a base library that is
+          // popular enough to be bundled in a third party lib, but not be part of
+          // an AMD load request. Those cases could generate an error when an
+          // anonymous define() is called outside of a loader request.
+          if (typeof define == 'function' && define.amd) {
+            define('underscore', [], function () {
+              return _;
+            });
+          }
+        })();
+      }).call(this, typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {});
+    }, {}], 20: [function (require, module, exports) {
+      module.exports = urlSetQuery;
+      function urlSetQuery(url, query) {
+        if (query) {
+          // remove optional leading symbols
+          query = query.trim().replace(/^(\?|#|&)/, '');
+
+          // don't append empty query
+          query = query ? '?' + query : query;
+
+          var parts = url.split(/[\?\#]/);
+          var start = parts[0];
+          if (query && /\:\/\/[^\/]*$/.test(start)) {
+            // e.g. http://foo.com -> http://foo.com/
+            start = start + '/';
+          }
+          var match = url.match(/(\#.*)$/);
+          url = start + query;
+          if (match) {
+            // add hash back in
+            url = url + match[0];
+          }
+        }
+        return url;
+      }
+    }, {}], 21: [function (require, module, exports) {
+      var request = require('xhr-request');
+
+      module.exports = function (url, options) {
+        return new Promise(function (resolve, reject) {
+          request(url, options, function (err, data) {
+            if (err) reject(err);else resolve(data);
+          });
+        });
+      };
+    }, { "xhr-request": 22 }], 22: [function (require, module, exports) {
+      var queryString = require('query-string');
+      var setQuery = require('url-set-query');
+      var assign = require('object-assign');
+      var ensureHeader = require('./lib/ensure-header.js');
+
+      // this is replaced in the browser
+      var request = require('./lib/request.js');
+
+      var mimeTypeJson = 'application/json';
+      var noop = function noop() {};
+
+      module.exports = xhrRequest;
+      function xhrRequest(url, opt, cb) {
+        if (!url || typeof url !== 'string') {
+          throw new TypeError('must specify a URL');
+        }
+        if (typeof opt === 'function') {
+          cb = opt;
+          opt = {};
+        }
+        if (cb && typeof cb !== 'function') {
+          throw new TypeError('expected cb to be undefined or a function');
+        }
+
+        cb = cb || noop;
+        opt = opt || {};
+
+        var defaultResponse = opt.json ? 'json' : 'text';
+        opt = assign({ responseType: defaultResponse }, opt);
+
+        var headers = opt.headers || {};
+        var method = (opt.method || 'GET').toUpperCase();
+        var query = opt.query;
+        if (query) {
+          if (typeof query !== 'string') {
+            query = queryString.stringify(query);
+          }
+          url = setQuery(url, query);
+        }
+
+        // allow json response
+        if (opt.responseType === 'json') {
+          ensureHeader(headers, 'Accept', mimeTypeJson);
+        }
+
+        // if body content is json
+        if (opt.json && method !== 'GET' && method !== 'HEAD') {
+          ensureHeader(headers, 'Content-Type', mimeTypeJson);
+          opt.body = JSON.stringify(opt.body);
+        }
+
+        opt.method = method;
+        opt.url = url;
+        opt.headers = headers;
+        delete opt.query;
+        delete opt.json;
+
+        return request(opt, cb);
+      }
+    }, { "./lib/ensure-header.js": 23, "./lib/request.js": 25, "object-assign": 10, "query-string": 12, "url-set-query": 20 }], 23: [function (require, module, exports) {
+      module.exports = ensureHeader;
+      function ensureHeader(headers, key, value) {
+        var lower = key.toLowerCase();
+        if (!headers[key] && !headers[lower]) {
+          headers[key] = value;
+        }
+      }
+    }, {}], 24: [function (require, module, exports) {
+      module.exports = getResponse;
+      function getResponse(opt, resp) {
+        if (!resp) return null;
+        return {
+          statusCode: resp.statusCode,
+          headers: resp.headers,
+          method: opt.method,
+          url: opt.url,
+          // the XHR object in browser, http response in Node
+          rawRequest: resp.rawRequest ? resp.rawRequest : resp
+        };
+      }
+    }, {}], 25: [function (require, module, exports) {
+      var xhr = require('xhr');
+      var normalize = require('./normalize-response');
+      var noop = function noop() {};
+
+      module.exports = xhrRequest;
+      function xhrRequest(opt, cb) {
+        delete opt.uri;
+
+        // for better JSON.parse error handling than xhr module
+        var useJson = false;
+        if (opt.responseType === 'json') {
+          opt.responseType = 'text';
+          useJson = true;
+        }
+
+        var req = xhr(opt, function xhrRequestResult(err, resp, body) {
+          if (useJson && !err) {
+            try {
+              var text = resp.rawRequest.responseText;
+              body = JSON.parse(text);
+            } catch (e) {
+              err = e;
+            }
+          }
+
+          resp = normalize(opt, resp);
+          if (err) cb(err, null, resp);else cb(err, body, resp);
+          cb = noop;
+        });
+
+        // Patch abort() so that it also calls the callback, but with an error
+        var onabort = req.onabort;
+        req.onabort = function () {
+          var ret = onabort.apply(req, Array.prototype.slice.call(arguments));
+          cb(new Error('XHR Aborted'));
+          cb = noop;
+          return ret;
+        };
+
+        return req;
+      }
+    }, { "./normalize-response": 24, "xhr": 26 }], 26: [function (require, module, exports) {
+      "use strict";
+
+      var window = require("global/window");
+      var isFunction = require("is-function");
+      var parseHeaders = require("parse-headers");
+      var xtend = require("xtend");
+
+      module.exports = createXHR;
+      // Allow use of default import syntax in TypeScript
+      module.exports.default = createXHR;
+      createXHR.XMLHttpRequest = window.XMLHttpRequest || noop;
+      createXHR.XDomainRequest = "withCredentials" in new createXHR.XMLHttpRequest() ? createXHR.XMLHttpRequest : window.XDomainRequest;
+
+      forEachArray(["get", "put", "post", "patch", "head", "delete"], function (method) {
+        createXHR[method === "delete" ? "del" : method] = function (uri, options, callback) {
+          options = initParams(uri, options, callback);
+          options.method = method.toUpperCase();
+          return _createXHR(options);
+        };
+      });
+
+      function forEachArray(array, iterator) {
+        for (var i = 0; i < array.length; i++) {
+          iterator(array[i]);
+        }
+      }
+
+      function isEmpty(obj) {
+        for (var i in obj) {
+          if (obj.hasOwnProperty(i)) return false;
+        }
+        return true;
+      }
+
+      function initParams(uri, options, callback) {
+        var params = uri;
+
+        if (isFunction(options)) {
+          callback = options;
+          if (typeof uri === "string") {
+            params = { uri: uri };
+          }
+        } else {
+          params = xtend(options, { uri: uri });
+        }
+
+        params.callback = callback;
+        return params;
+      }
+
+      function createXHR(uri, options, callback) {
+        options = initParams(uri, options, callback);
+        return _createXHR(options);
+      }
+
+      function _createXHR(options) {
+        if (typeof options.callback === "undefined") {
+          throw new Error("callback argument missing");
+        }
+
+        var called = false;
+        var callback = function cbOnce(err, response, body) {
+          if (!called) {
+            called = true;
+            options.callback(err, response, body);
+          }
+        };
+
+        function readystatechange() {
+          if (xhr.readyState === 4) {
+            setTimeout(loadFunc, 0);
+          }
+        }
+
+        function getBody() {
+          // Chrome with requestType=blob throws errors arround when even testing access to responseText
+          var body = undefined;
+
+          if (xhr.response) {
+            body = xhr.response;
+          } else {
+            body = xhr.responseText || getXml(xhr);
+          }
+
+          if (isJson) {
+            try {
+              body = JSON.parse(body);
+            } catch (e) {}
+          }
+
+          return body;
+        }
+
+        function errorFunc(evt) {
+          clearTimeout(timeoutTimer);
+          if (!(evt instanceof Error)) {
+            evt = new Error("" + (evt || "Unknown XMLHttpRequest Error"));
+          }
+          evt.statusCode = 0;
+          return callback(evt, failureResponse);
+        }
+
+        // will load the data & process the response in a special response object
+        function loadFunc() {
+          if (aborted) return;
+          var status;
+          clearTimeout(timeoutTimer);
+          if (options.useXDR && xhr.status === undefined) {
+            //IE8 CORS GET successful response doesn't have a status field, but body is fine
+            status = 200;
+          } else {
+            status = xhr.status === 1223 ? 204 : xhr.status;
+          }
+          var response = failureResponse;
+          var err = null;
+
+          if (status !== 0) {
+            response = {
+              body: getBody(),
+              statusCode: status,
+              method: method,
+              headers: {},
+              url: uri,
+              rawRequest: xhr
+            };
+            if (xhr.getAllResponseHeaders) {
+              //remember xhr can in fact be XDR for CORS in IE
+              response.headers = parseHeaders(xhr.getAllResponseHeaders());
+            }
+          } else {
+            err = new Error("Internal XMLHttpRequest Error");
+          }
+          return callback(err, response, response.body);
+        }
+
+        var xhr = options.xhr || null;
+
+        if (!xhr) {
+          if (options.cors || options.useXDR) {
+            xhr = new createXHR.XDomainRequest();
+          } else {
+            xhr = new createXHR.XMLHttpRequest();
+          }
+        }
+
+        var key;
+        var aborted;
+        var uri = xhr.url = options.uri || options.url;
+        var method = xhr.method = options.method || "GET";
+        var body = options.body || options.data;
+        var headers = xhr.headers = options.headers || {};
+        var sync = !!options.sync;
+        var isJson = false;
+        var timeoutTimer;
+        var failureResponse = {
+          body: undefined,
+          headers: {},
+          statusCode: 0,
+          method: method,
+          url: uri,
+          rawRequest: xhr
+        };
+
+        if ("json" in options && options.json !== false) {
+          isJson = true;
+          headers["accept"] || headers["Accept"] || (headers["Accept"] = "application/json"); //Don't override existing accept header declared by user
+          if (method !== "GET" && method !== "HEAD") {
+            headers["content-type"] || headers["Content-Type"] || (headers["Content-Type"] = "application/json"); //Don't override existing accept header declared by user
+            body = JSON.stringify(options.json === true ? body : options.json);
+          }
+        }
+
+        xhr.onreadystatechange = readystatechange;
+        xhr.onload = loadFunc;
+        xhr.onerror = errorFunc;
+        // IE9 must have onprogress be set to a unique function.
+        xhr.onprogress = function () {
+          // IE must die
+        };
+        xhr.onabort = function () {
+          aborted = true;
+        };
+        xhr.ontimeout = errorFunc;
+        xhr.open(method, uri, !sync, options.username, options.password);
+        //has to be after open
+        if (!sync) {
+          xhr.withCredentials = !!options.withCredentials;
+        }
+        // Cannot set timeout with sync request
+        // not setting timeout on the xhr object, because of old webkits etc. not handling that correctly
+        // both npm's request and jquery 1.x use this kind of timeout, so this is being consistent
+        if (!sync && options.timeout > 0) {
+          timeoutTimer = setTimeout(function () {
+            if (aborted) return;
+            aborted = true; //IE9 may still call readystatechange
+            xhr.abort("timeout");
+            var e = new Error("XMLHttpRequest timeout");
+            e.code = "ETIMEDOUT";
+            errorFunc(e);
+          }, options.timeout);
+        }
+
+        if (xhr.setRequestHeader) {
+          for (key in headers) {
+            if (headers.hasOwnProperty(key)) {
+              xhr.setRequestHeader(key, headers[key]);
+            }
+          }
+        } else if (options.headers && !isEmpty(options.headers)) {
+          throw new Error("Headers cannot be set on an XDomainRequest object");
+        }
+
+        if ("responseType" in options) {
+          xhr.responseType = options.responseType;
+        }
+
+        if ("beforeSend" in options && typeof options.beforeSend === "function") {
+          options.beforeSend(xhr);
+        }
+
+        // Microsoft Edge browser sends "undefined" when send is called with undefined value.
+        // XMLHttpRequest spec says to pass null as body to indicate no body
+        // See https://github.com/naugtur/xhr/issues/100.
+        xhr.send(body || null);
+
+        return xhr;
+      }
+
+      function getXml(xhr) {
+        // xhr.responseXML will throw Exception "InvalidStateError" or "DOMException"
+        // See https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/responseXML.
+        try {
+          if (xhr.responseType === "document") {
+            return xhr.responseXML;
+          }
+          var firefoxBugTakenEffect = xhr.responseXML && xhr.responseXML.documentElement.nodeName === "parsererror";
+          if (xhr.responseType === "" && !firefoxBugTakenEffect) {
+            return xhr.responseXML;
+          }
+        } catch (e) {}
+
+        return null;
+      }
+
+      function noop() {}
+    }, { "global/window": 7, "is-function": 9, "parse-headers": 11, "xtend": 27 }], 27: [function (require, module, exports) {
+      module.exports = extend;
+
+      var hasOwnProperty = Object.prototype.hasOwnProperty;
+
+      function extend() {
+        var target = {};
+
+        for (var i = 0; i < arguments.length; i++) {
+          var source = arguments[i];
+
+          for (var key in source) {
+            if (hasOwnProperty.call(source, key)) {
+              target[key] = source[key];
+            }
+          }
+        }
+
+        return target;
+      }
+    }, {}], "BN": [function (require, module, exports) {
       (function (module, exports) {
         'use strict';
 
@@ -3393,3910 +7498,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
           return res._forceRed(this);
         };
       })(typeof module === 'undefined' || module, this);
-    }, { "buffer": 1 }], 1: [function (require, module, exports) {}, {}], 2: [function (require, module, exports) {
-      'use strict';
-
-      var token = '%[a-f0-9]{2}';
-      var singleMatcher = new RegExp(token, 'gi');
-      var multiMatcher = new RegExp('(' + token + ')+', 'gi');
-
-      function decodeComponents(components, split) {
-        try {
-          // Try to decode the entire string first
-          return decodeURIComponent(components.join(''));
-        } catch (err) {
-          // Do nothing
-        }
-
-        if (components.length === 1) {
-          return components;
-        }
-
-        split = split || 1;
-
-        // Split the array in 2 parts
-        var left = components.slice(0, split);
-        var right = components.slice(split);
-
-        return Array.prototype.concat.call([], decodeComponents(left), decodeComponents(right));
-      }
-
-      function decode(input) {
-        try {
-          return decodeURIComponent(input);
-        } catch (err) {
-          var tokens = input.match(singleMatcher);
-
-          for (var i = 1; i < tokens.length; i++) {
-            input = decodeComponents(tokens, i).join('');
-
-            tokens = input.match(singleMatcher);
-          }
-
-          return input;
-        }
-      }
-
-      function customDecodeURIComponent(input) {
-        // Keep track of all the replacements and prefill the map with the `BOM`
-        var replaceMap = {
-          '%FE%FF': "\uFFFD\uFFFD",
-          '%FF%FE': "\uFFFD\uFFFD"
-        };
-
-        var match = multiMatcher.exec(input);
-        while (match) {
-          try {
-            // Decode as big chunks as possible
-            replaceMap[match[0]] = decodeURIComponent(match[0]);
-          } catch (err) {
-            var result = decode(match[0]);
-
-            if (result !== match[0]) {
-              replaceMap[match[0]] = result;
-            }
-          }
-
-          match = multiMatcher.exec(input);
-        }
-
-        // Add `%C2` at the end of the map to make sure it does not replace the combinator before everything else
-        replaceMap['%C2'] = "\uFFFD";
-
-        var entries = Object.keys(replaceMap);
-
-        for (var i = 0; i < entries.length; i++) {
-          // Replace all decoded components
-          var key = entries[i];
-          input = input.replace(new RegExp(key, 'g'), replaceMap[key]);
-        }
-
-        return input;
-      }
-
-      module.exports = function (encodedURI) {
-        if (typeof encodedURI !== 'string') {
-          throw new TypeError('Expected `encodedURI` to be of type `string`, got `' + (typeof encodedURI === "undefined" ? "undefined" : _typeof(encodedURI)) + '`');
-        }
-
-        try {
-          encodedURI = encodedURI.replace(/\+/g, ' ');
-
-          // Try the built in decoder first
-          return decodeURIComponent(encodedURI);
-        } catch (err) {
-          // Fallback to a more advanced decoder
-          return customDecodeURIComponent(encodedURI);
-        }
-      };
-    }, {}], 3: [function (require, module, exports) {
-      var generate = function generate(num, fn) {
-        var a = [];
-        for (var i = 0; i < num; ++i) {
-          a.push(fn(i));
-        }return a;
-      };
-
-      var replicate = function replicate(num, val) {
-        return generate(num, function () {
-          return val;
-        });
-      };
-
-      var concat = function concat(a, b) {
-        return a.concat(b);
-      };
-
-      var flatten = function flatten(a) {
-        var r = [];
-        for (var j = 0, J = a.length; j < J; ++j) {
-          for (var i = 0, I = a[j].length; i < I; ++i) {
-            r.push(a[j][i]);
-          }
-        }return r;
-      };
-
-      var chunksOf = function chunksOf(n, a) {
-        var b = [];
-        for (var i = 0, l = a.length; i < l; i += n) {
-          b.push(a.slice(i, i + n));
-        }return b;
-      };
-
-      module.exports = {
-        generate: generate,
-        replicate: replicate,
-        concat: concat,
-        flatten: flatten,
-        chunksOf: chunksOf
-      };
-    }, {}], 4: [function (require, module, exports) {
-      var A = require("./array.js");
-
-      var at = function at(bytes, index) {
-        return parseInt(bytes.slice(index * 2 + 2, index * 2 + 4), 16);
-      };
-
-      var random = function random(bytes) {
-        var rnd = void 0;
-        if (typeof window !== "undefined" && window.crypto && window.crypto.getRandomValues) rnd = window.crypto.getRandomValues(new Uint8Array(bytes));else if (typeof require !== "undefined") rnd = require("c" + "rypto").randomBytes(bytes);else throw "Safe random numbers not available.";
-        var hex = "0x";
-        for (var i = 0; i < bytes; ++i) {
-          hex += ("00" + rnd[i].toString(16)).slice(-2);
-        }return hex;
-      };
-
-      var length = function length(a) {
-        return (a.length - 2) / 2;
-      };
-
-      var flatten = function flatten(a) {
-        return "0x" + a.reduce(function (r, s) {
-          return r + s.slice(2);
-        }, "");
-      };
-
-      var slice = function slice(i, j, bs) {
-        return "0x" + bs.slice(i * 2 + 2, j * 2 + 2);
-      };
-
-      var reverse = function reverse(hex) {
-        var rev = "0x";
-        for (var i = 0, l = length(hex); i < l; ++i) {
-          rev += hex.slice((l - i) * 2, (l - i + 1) * 2);
-        }
-        return rev;
-      };
-
-      var pad = function pad(l, hex) {
-        return hex.length === l * 2 + 2 ? hex : pad(l, "0x" + "0" + hex.slice(2));
-      };
-
-      var padRight = function padRight(l, hex) {
-        return hex.length === l * 2 + 2 ? hex : padRight(l, hex + "0");
-      };
-
-      var toArray = function toArray(hex) {
-        var arr = [];
-        for (var i = 2, l = hex.length; i < l; i += 2) {
-          arr.push(parseInt(hex.slice(i, i + 2), 16));
-        }return arr;
-      };
-
-      var fromArray = function fromArray(arr) {
-        var hex = "0x";
-        for (var i = 0, l = arr.length; i < l; ++i) {
-          var b = arr[i];
-          hex += (b < 16 ? "0" : "") + b.toString(16);
-        }
-        return hex;
-      };
-
-      var toUint8Array = function toUint8Array(hex) {
-        return new Uint8Array(toArray(hex));
-      };
-
-      var fromUint8Array = function fromUint8Array(arr) {
-        return fromArray([].slice.call(arr, 0));
-      };
-
-      var fromNumber = function fromNumber(num) {
-        var hex = num.toString(16);
-        return hex.length % 2 === 0 ? "0x" + hex : "0x0" + hex;
-      };
-
-      var toNumber = function toNumber(hex) {
-        return parseInt(hex.slice(2), 16);
-      };
-
-      var concat = function concat(a, b) {
-        return a.concat(b.slice(2));
-      };
-
-      var fromNat = function fromNat(bn) {
-        return bn === "0x0" ? "0x" : bn.length % 2 === 0 ? bn : "0x0" + bn.slice(2);
-      };
-
-      var toNat = function toNat(bn) {
-        return bn[2] === "0" ? "0x" + bn.slice(3) : bn;
-      };
-
-      var fromAscii = function fromAscii(ascii) {
-        var hex = "0x";
-        for (var i = 0; i < ascii.length; ++i) {
-          hex += ("00" + ascii.charCodeAt(i).toString(16)).slice(-2);
-        }return hex;
-      };
-
-      var toAscii = function toAscii(hex) {
-        var ascii = "";
-        for (var i = 2; i < hex.length; i += 2) {
-          ascii += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
-        }return ascii;
-      };
-
-      // From https://gist.github.com/pascaldekloe/62546103a1576803dade9269ccf76330
-      var fromString = function fromString(s) {
-        var makeByte = function makeByte(uint8) {
-          var b = uint8.toString(16);
-          return b.length < 2 ? "0" + b : b;
-        };
-        var bytes = "0x";
-        for (var ci = 0; ci != s.length; ci++) {
-          var c = s.charCodeAt(ci);
-          if (c < 128) {
-            bytes += makeByte(c);
-            continue;
-          }
-          if (c < 2048) {
-            bytes += makeByte(c >> 6 | 192);
-          } else {
-            if (c > 0xd7ff && c < 0xdc00) {
-              if (++ci == s.length) return null;
-              var c2 = s.charCodeAt(ci);
-              if (c2 < 0xdc00 || c2 > 0xdfff) return null;
-              c = 0x10000 + ((c & 0x03ff) << 10) + (c2 & 0x03ff);
-              bytes += makeByte(c >> 18 | 240);
-              bytes += makeByte(c >> 12 & 63 | 128);
-            } else {
-              // c <= 0xffff
-              bytes += makeByte(c >> 12 | 224);
-            }
-            bytes += makeByte(c >> 6 & 63 | 128);
-          }
-          bytes += makeByte(c & 63 | 128);
-        }
-        return bytes;
-      };
-
-      var toString = function toString(bytes) {
-        var s = '';
-        var i = 0;
-        var l = length(bytes);
-        while (i < l) {
-          var c = at(bytes, i++);
-          if (c > 127) {
-            if (c > 191 && c < 224) {
-              if (i >= l) return null;
-              c = (c & 31) << 6 | at(bytes, i) & 63;
-            } else if (c > 223 && c < 240) {
-              if (i + 1 >= l) return null;
-              c = (c & 15) << 12 | (at(bytes, i) & 63) << 6 | at(bytes, ++i) & 63;
-            } else if (c > 239 && c < 248) {
-              if (i + 2 >= l) return null;
-              c = (c & 7) << 18 | (at(bytes, i) & 63) << 12 | (at(bytes, ++i) & 63) << 6 | at(bytes, ++i) & 63;
-            } else return null;
-            ++i;
-          }
-          if (c <= 0xffff) s += String.fromCharCode(c);else if (c <= 0x10ffff) {
-            c -= 0x10000;
-            s += String.fromCharCode(c >> 10 | 0xd800);
-            s += String.fromCharCode(c & 0x3FF | 0xdc00);
-          } else return null;
-        }
-        return s;
-      };
-
-      module.exports = {
-        random: random,
-        length: length,
-        concat: concat,
-        flatten: flatten,
-        slice: slice,
-        reverse: reverse,
-        pad: pad,
-        padRight: padRight,
-        fromAscii: fromAscii,
-        toAscii: toAscii,
-        fromString: fromString,
-        toString: toString,
-        fromNumber: fromNumber,
-        toNumber: toNumber,
-        fromNat: fromNat,
-        toNat: toNat,
-        fromArray: fromArray,
-        toArray: toArray,
-        fromUint8Array: fromUint8Array,
-        toUint8Array: toUint8Array
-      };
-    }, { "./array.js": 3 }], 5: [function (require, module, exports) {
-      // This was ported from https://github.com/emn178/js-sha3, with some minor
-      // modifications and pruning. It is licensed under MIT:
-      //
-      // Copyright 2015-2016 Chen, Yi-Cyuan
-      //  
-      // Permission is hereby granted, free of charge, to any person obtaining
-      // a copy of this software and associated documentation files (the
-      // "Software"), to deal in the Software without restriction, including
-      // without limitation the rights to use, copy, modify, merge, publish,
-      // distribute, sublicense, and/or sell copies of the Software, and to
-      // permit persons to whom the Software is furnished to do so, subject to
-      // the following conditions:
-      // 
-      // The above copyright notice and this permission notice shall be
-      // included in all copies or substantial portions of the Software.
-      // 
-      // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-      // EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-      // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-      // NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-      // LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-      // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-      // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-      var HEX_CHARS = '0123456789abcdef'.split('');
-      var KECCAK_PADDING = [1, 256, 65536, 16777216];
-      var SHIFT = [0, 8, 16, 24];
-      var RC = [1, 0, 32898, 0, 32906, 2147483648, 2147516416, 2147483648, 32907, 0, 2147483649, 0, 2147516545, 2147483648, 32777, 2147483648, 138, 0, 136, 0, 2147516425, 0, 2147483658, 0, 2147516555, 0, 139, 2147483648, 32905, 2147483648, 32771, 2147483648, 32770, 2147483648, 128, 2147483648, 32778, 0, 2147483658, 2147483648, 2147516545, 2147483648, 32896, 2147483648, 2147483649, 0, 2147516424, 2147483648];
-
-      var Keccak = function Keccak(bits) {
-        return {
-          blocks: [],
-          reset: true,
-          block: 0,
-          start: 0,
-          blockCount: 1600 - (bits << 1) >> 5,
-          outputBlocks: bits >> 5,
-          s: function (s) {
-            return [].concat(s, s, s, s, s);
-          }([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        };
-      };
-
-      var update = function update(state, message) {
-        var length = message.length,
-            blocks = state.blocks,
-            byteCount = state.blockCount << 2,
-            blockCount = state.blockCount,
-            outputBlocks = state.outputBlocks,
-            s = state.s,
-            index = 0,
-            i,
-            code;
-
-        // update
-        while (index < length) {
-          if (state.reset) {
-            state.reset = false;
-            blocks[0] = state.block;
-            for (i = 1; i < blockCount + 1; ++i) {
-              blocks[i] = 0;
-            }
-          }
-          if (typeof message !== "string") {
-            for (i = state.start; index < length && i < byteCount; ++index) {
-              blocks[i >> 2] |= message[index] << SHIFT[i++ & 3];
-            }
-          } else {
-            for (i = state.start; index < length && i < byteCount; ++index) {
-              code = message.charCodeAt(index);
-              if (code < 0x80) {
-                blocks[i >> 2] |= code << SHIFT[i++ & 3];
-              } else if (code < 0x800) {
-                blocks[i >> 2] |= (0xc0 | code >> 6) << SHIFT[i++ & 3];
-                blocks[i >> 2] |= (0x80 | code & 0x3f) << SHIFT[i++ & 3];
-              } else if (code < 0xd800 || code >= 0xe000) {
-                blocks[i >> 2] |= (0xe0 | code >> 12) << SHIFT[i++ & 3];
-                blocks[i >> 2] |= (0x80 | code >> 6 & 0x3f) << SHIFT[i++ & 3];
-                blocks[i >> 2] |= (0x80 | code & 0x3f) << SHIFT[i++ & 3];
-              } else {
-                code = 0x10000 + ((code & 0x3ff) << 10 | message.charCodeAt(++index) & 0x3ff);
-                blocks[i >> 2] |= (0xf0 | code >> 18) << SHIFT[i++ & 3];
-                blocks[i >> 2] |= (0x80 | code >> 12 & 0x3f) << SHIFT[i++ & 3];
-                blocks[i >> 2] |= (0x80 | code >> 6 & 0x3f) << SHIFT[i++ & 3];
-                blocks[i >> 2] |= (0x80 | code & 0x3f) << SHIFT[i++ & 3];
-              }
-            }
-          }
-          state.lastByteIndex = i;
-          if (i >= byteCount) {
-            state.start = i - byteCount;
-            state.block = blocks[blockCount];
-            for (i = 0; i < blockCount; ++i) {
-              s[i] ^= blocks[i];
-            }
-            f(s);
-            state.reset = true;
-          } else {
-            state.start = i;
-          }
-        }
-
-        // finalize
-        i = state.lastByteIndex;
-        blocks[i >> 2] |= KECCAK_PADDING[i & 3];
-        if (state.lastByteIndex === byteCount) {
-          blocks[0] = blocks[blockCount];
-          for (i = 1; i < blockCount + 1; ++i) {
-            blocks[i] = 0;
-          }
-        }
-        blocks[blockCount - 1] |= 0x80000000;
-        for (i = 0; i < blockCount; ++i) {
-          s[i] ^= blocks[i];
-        }
-        f(s);
-
-        // toString
-        var hex = '',
-            i = 0,
-            j = 0,
-            block;
-        while (j < outputBlocks) {
-          for (i = 0; i < blockCount && j < outputBlocks; ++i, ++j) {
-            block = s[i];
-            hex += HEX_CHARS[block >> 4 & 0x0F] + HEX_CHARS[block & 0x0F] + HEX_CHARS[block >> 12 & 0x0F] + HEX_CHARS[block >> 8 & 0x0F] + HEX_CHARS[block >> 20 & 0x0F] + HEX_CHARS[block >> 16 & 0x0F] + HEX_CHARS[block >> 28 & 0x0F] + HEX_CHARS[block >> 24 & 0x0F];
-          }
-          if (j % blockCount === 0) {
-            f(s);
-            i = 0;
-          }
-        }
-        return "0x" + hex;
-      };
-
-      var f = function f(s) {
-        var h, l, n, c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31, b32, b33, b34, b35, b36, b37, b38, b39, b40, b41, b42, b43, b44, b45, b46, b47, b48, b49;
-
-        for (n = 0; n < 48; n += 2) {
-          c0 = s[0] ^ s[10] ^ s[20] ^ s[30] ^ s[40];
-          c1 = s[1] ^ s[11] ^ s[21] ^ s[31] ^ s[41];
-          c2 = s[2] ^ s[12] ^ s[22] ^ s[32] ^ s[42];
-          c3 = s[3] ^ s[13] ^ s[23] ^ s[33] ^ s[43];
-          c4 = s[4] ^ s[14] ^ s[24] ^ s[34] ^ s[44];
-          c5 = s[5] ^ s[15] ^ s[25] ^ s[35] ^ s[45];
-          c6 = s[6] ^ s[16] ^ s[26] ^ s[36] ^ s[46];
-          c7 = s[7] ^ s[17] ^ s[27] ^ s[37] ^ s[47];
-          c8 = s[8] ^ s[18] ^ s[28] ^ s[38] ^ s[48];
-          c9 = s[9] ^ s[19] ^ s[29] ^ s[39] ^ s[49];
-
-          h = c8 ^ (c2 << 1 | c3 >>> 31);
-          l = c9 ^ (c3 << 1 | c2 >>> 31);
-          s[0] ^= h;
-          s[1] ^= l;
-          s[10] ^= h;
-          s[11] ^= l;
-          s[20] ^= h;
-          s[21] ^= l;
-          s[30] ^= h;
-          s[31] ^= l;
-          s[40] ^= h;
-          s[41] ^= l;
-          h = c0 ^ (c4 << 1 | c5 >>> 31);
-          l = c1 ^ (c5 << 1 | c4 >>> 31);
-          s[2] ^= h;
-          s[3] ^= l;
-          s[12] ^= h;
-          s[13] ^= l;
-          s[22] ^= h;
-          s[23] ^= l;
-          s[32] ^= h;
-          s[33] ^= l;
-          s[42] ^= h;
-          s[43] ^= l;
-          h = c2 ^ (c6 << 1 | c7 >>> 31);
-          l = c3 ^ (c7 << 1 | c6 >>> 31);
-          s[4] ^= h;
-          s[5] ^= l;
-          s[14] ^= h;
-          s[15] ^= l;
-          s[24] ^= h;
-          s[25] ^= l;
-          s[34] ^= h;
-          s[35] ^= l;
-          s[44] ^= h;
-          s[45] ^= l;
-          h = c4 ^ (c8 << 1 | c9 >>> 31);
-          l = c5 ^ (c9 << 1 | c8 >>> 31);
-          s[6] ^= h;
-          s[7] ^= l;
-          s[16] ^= h;
-          s[17] ^= l;
-          s[26] ^= h;
-          s[27] ^= l;
-          s[36] ^= h;
-          s[37] ^= l;
-          s[46] ^= h;
-          s[47] ^= l;
-          h = c6 ^ (c0 << 1 | c1 >>> 31);
-          l = c7 ^ (c1 << 1 | c0 >>> 31);
-          s[8] ^= h;
-          s[9] ^= l;
-          s[18] ^= h;
-          s[19] ^= l;
-          s[28] ^= h;
-          s[29] ^= l;
-          s[38] ^= h;
-          s[39] ^= l;
-          s[48] ^= h;
-          s[49] ^= l;
-
-          b0 = s[0];
-          b1 = s[1];
-          b32 = s[11] << 4 | s[10] >>> 28;
-          b33 = s[10] << 4 | s[11] >>> 28;
-          b14 = s[20] << 3 | s[21] >>> 29;
-          b15 = s[21] << 3 | s[20] >>> 29;
-          b46 = s[31] << 9 | s[30] >>> 23;
-          b47 = s[30] << 9 | s[31] >>> 23;
-          b28 = s[40] << 18 | s[41] >>> 14;
-          b29 = s[41] << 18 | s[40] >>> 14;
-          b20 = s[2] << 1 | s[3] >>> 31;
-          b21 = s[3] << 1 | s[2] >>> 31;
-          b2 = s[13] << 12 | s[12] >>> 20;
-          b3 = s[12] << 12 | s[13] >>> 20;
-          b34 = s[22] << 10 | s[23] >>> 22;
-          b35 = s[23] << 10 | s[22] >>> 22;
-          b16 = s[33] << 13 | s[32] >>> 19;
-          b17 = s[32] << 13 | s[33] >>> 19;
-          b48 = s[42] << 2 | s[43] >>> 30;
-          b49 = s[43] << 2 | s[42] >>> 30;
-          b40 = s[5] << 30 | s[4] >>> 2;
-          b41 = s[4] << 30 | s[5] >>> 2;
-          b22 = s[14] << 6 | s[15] >>> 26;
-          b23 = s[15] << 6 | s[14] >>> 26;
-          b4 = s[25] << 11 | s[24] >>> 21;
-          b5 = s[24] << 11 | s[25] >>> 21;
-          b36 = s[34] << 15 | s[35] >>> 17;
-          b37 = s[35] << 15 | s[34] >>> 17;
-          b18 = s[45] << 29 | s[44] >>> 3;
-          b19 = s[44] << 29 | s[45] >>> 3;
-          b10 = s[6] << 28 | s[7] >>> 4;
-          b11 = s[7] << 28 | s[6] >>> 4;
-          b42 = s[17] << 23 | s[16] >>> 9;
-          b43 = s[16] << 23 | s[17] >>> 9;
-          b24 = s[26] << 25 | s[27] >>> 7;
-          b25 = s[27] << 25 | s[26] >>> 7;
-          b6 = s[36] << 21 | s[37] >>> 11;
-          b7 = s[37] << 21 | s[36] >>> 11;
-          b38 = s[47] << 24 | s[46] >>> 8;
-          b39 = s[46] << 24 | s[47] >>> 8;
-          b30 = s[8] << 27 | s[9] >>> 5;
-          b31 = s[9] << 27 | s[8] >>> 5;
-          b12 = s[18] << 20 | s[19] >>> 12;
-          b13 = s[19] << 20 | s[18] >>> 12;
-          b44 = s[29] << 7 | s[28] >>> 25;
-          b45 = s[28] << 7 | s[29] >>> 25;
-          b26 = s[38] << 8 | s[39] >>> 24;
-          b27 = s[39] << 8 | s[38] >>> 24;
-          b8 = s[48] << 14 | s[49] >>> 18;
-          b9 = s[49] << 14 | s[48] >>> 18;
-
-          s[0] = b0 ^ ~b2 & b4;
-          s[1] = b1 ^ ~b3 & b5;
-          s[10] = b10 ^ ~b12 & b14;
-          s[11] = b11 ^ ~b13 & b15;
-          s[20] = b20 ^ ~b22 & b24;
-          s[21] = b21 ^ ~b23 & b25;
-          s[30] = b30 ^ ~b32 & b34;
-          s[31] = b31 ^ ~b33 & b35;
-          s[40] = b40 ^ ~b42 & b44;
-          s[41] = b41 ^ ~b43 & b45;
-          s[2] = b2 ^ ~b4 & b6;
-          s[3] = b3 ^ ~b5 & b7;
-          s[12] = b12 ^ ~b14 & b16;
-          s[13] = b13 ^ ~b15 & b17;
-          s[22] = b22 ^ ~b24 & b26;
-          s[23] = b23 ^ ~b25 & b27;
-          s[32] = b32 ^ ~b34 & b36;
-          s[33] = b33 ^ ~b35 & b37;
-          s[42] = b42 ^ ~b44 & b46;
-          s[43] = b43 ^ ~b45 & b47;
-          s[4] = b4 ^ ~b6 & b8;
-          s[5] = b5 ^ ~b7 & b9;
-          s[14] = b14 ^ ~b16 & b18;
-          s[15] = b15 ^ ~b17 & b19;
-          s[24] = b24 ^ ~b26 & b28;
-          s[25] = b25 ^ ~b27 & b29;
-          s[34] = b34 ^ ~b36 & b38;
-          s[35] = b35 ^ ~b37 & b39;
-          s[44] = b44 ^ ~b46 & b48;
-          s[45] = b45 ^ ~b47 & b49;
-          s[6] = b6 ^ ~b8 & b0;
-          s[7] = b7 ^ ~b9 & b1;
-          s[16] = b16 ^ ~b18 & b10;
-          s[17] = b17 ^ ~b19 & b11;
-          s[26] = b26 ^ ~b28 & b20;
-          s[27] = b27 ^ ~b29 & b21;
-          s[36] = b36 ^ ~b38 & b30;
-          s[37] = b37 ^ ~b39 & b31;
-          s[46] = b46 ^ ~b48 & b40;
-          s[47] = b47 ^ ~b49 & b41;
-          s[8] = b8 ^ ~b0 & b2;
-          s[9] = b9 ^ ~b1 & b3;
-          s[18] = b18 ^ ~b10 & b12;
-          s[19] = b19 ^ ~b11 & b13;
-          s[28] = b28 ^ ~b20 & b22;
-          s[29] = b29 ^ ~b21 & b23;
-          s[38] = b38 ^ ~b30 & b32;
-          s[39] = b39 ^ ~b31 & b33;
-          s[48] = b48 ^ ~b40 & b42;
-          s[49] = b49 ^ ~b41 & b43;
-
-          s[0] ^= RC[n];
-          s[1] ^= RC[n + 1];
-        }
-      };
-
-      var keccak = function keccak(bits) {
-        return function (str) {
-          var msg;
-          if (str.slice(0, 2) === "0x") {
-            msg = [];
-            for (var i = 2, l = str.length; i < l; i += 2) {
-              msg.push(parseInt(str.slice(i, i + 2), 16));
-            }
-          } else {
-            msg = str;
-          }
-          return update(Keccak(bits, bits), msg);
-        };
-      };
-
-      module.exports = {
-        keccak256: keccak(256),
-        keccak512: keccak(512),
-        keccak256s: keccak(256),
-        keccak512s: keccak(512)
-      };
-    }, {}], 6: [function (require, module, exports) {
-      'use strict';
-
-      var isCallable = require('is-callable');
-
-      var toStr = Object.prototype.toString;
-      var hasOwnProperty = Object.prototype.hasOwnProperty;
-
-      var forEachArray = function forEachArray(array, iterator, receiver) {
-        for (var i = 0, len = array.length; i < len; i++) {
-          if (hasOwnProperty.call(array, i)) {
-            if (receiver == null) {
-              iterator(array[i], i, array);
-            } else {
-              iterator.call(receiver, array[i], i, array);
-            }
-          }
-        }
-      };
-
-      var forEachString = function forEachString(string, iterator, receiver) {
-        for (var i = 0, len = string.length; i < len; i++) {
-          // no such thing as a sparse string.
-          if (receiver == null) {
-            iterator(string.charAt(i), i, string);
-          } else {
-            iterator.call(receiver, string.charAt(i), i, string);
-          }
-        }
-      };
-
-      var forEachObject = function forEachObject(object, iterator, receiver) {
-        for (var k in object) {
-          if (hasOwnProperty.call(object, k)) {
-            if (receiver == null) {
-              iterator(object[k], k, object);
-            } else {
-              iterator.call(receiver, object[k], k, object);
-            }
-          }
-        }
-      };
-
-      var forEach = function forEach(list, iterator, thisArg) {
-        if (!isCallable(iterator)) {
-          throw new TypeError('iterator must be a function');
-        }
-
-        var receiver;
-        if (arguments.length >= 3) {
-          receiver = thisArg;
-        }
-
-        if (toStr.call(list) === '[object Array]') {
-          forEachArray(list, iterator, receiver);
-        } else if (typeof list === 'string') {
-          forEachString(list, iterator, receiver);
-        } else {
-          forEachObject(list, iterator, receiver);
-        }
-      };
-
-      module.exports = forEach;
-    }, { "is-callable": 8 }], 7: [function (require, module, exports) {
-      (function (global) {
-        var win;
-
-        if (typeof window !== "undefined") {
-          win = window;
-        } else if (typeof global !== "undefined") {
-          win = global;
-        } else if (typeof self !== "undefined") {
-          win = self;
-        } else {
-          win = {};
-        }
-
-        module.exports = win;
-      }).call(this, typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {});
-    }, {}], 8: [function (require, module, exports) {
-      'use strict';
-
-      var fnToStr = Function.prototype.toString;
-
-      var constructorRegex = /^\s*class\b/;
-      var isES6ClassFn = function isES6ClassFunction(value) {
-        try {
-          var fnStr = fnToStr.call(value);
-          return constructorRegex.test(fnStr);
-        } catch (e) {
-          return false; // not a function
-        }
-      };
-
-      var tryFunctionObject = function tryFunctionToStr(value) {
-        try {
-          if (isES6ClassFn(value)) {
-            return false;
-          }
-          fnToStr.call(value);
-          return true;
-        } catch (e) {
-          return false;
-        }
-      };
-      var toStr = Object.prototype.toString;
-      var fnClass = '[object Function]';
-      var genClass = '[object GeneratorFunction]';
-      var hasToStringTag = typeof Symbol === 'function' && _typeof(Symbol.toStringTag) === 'symbol';
-
-      module.exports = function isCallable(value) {
-        if (!value) {
-          return false;
-        }
-        if (typeof value !== 'function' && (typeof value === "undefined" ? "undefined" : _typeof(value)) !== 'object') {
-          return false;
-        }
-        if (typeof value === 'function' && !value.prototype) {
-          return true;
-        }
-        if (hasToStringTag) {
-          return tryFunctionObject(value);
-        }
-        if (isES6ClassFn(value)) {
-          return false;
-        }
-        var strClass = toStr.call(value);
-        return strClass === fnClass || strClass === genClass;
-      };
-    }, {}], 9: [function (require, module, exports) {
-      module.exports = isFunction;
-
-      var toString = Object.prototype.toString;
-
-      function isFunction(fn) {
-        var string = toString.call(fn);
-        return string === '[object Function]' || typeof fn === 'function' && string !== '[object RegExp]' || typeof window !== 'undefined' && (
-        // IE8 and below
-        fn === window.setTimeout || fn === window.alert || fn === window.confirm || fn === window.prompt);
-      };
-    }, {}], 10: [function (require, module, exports) {
-      /*
-      object-assign
-      (c) Sindre Sorhus
-      @license MIT
-      */
-
-      'use strict';
-      /* eslint-disable no-unused-vars */
-
-      var getOwnPropertySymbols = Object.getOwnPropertySymbols;
-      var hasOwnProperty = Object.prototype.hasOwnProperty;
-      var propIsEnumerable = Object.prototype.propertyIsEnumerable;
-
-      function toObject(val) {
-        if (val === null || val === undefined) {
-          throw new TypeError('Object.assign cannot be called with null or undefined');
-        }
-
-        return Object(val);
-      }
-
-      function shouldUseNative() {
-        try {
-          if (!Object.assign) {
-            return false;
-          }
-
-          // Detect buggy property enumeration order in older V8 versions.
-
-          // https://bugs.chromium.org/p/v8/issues/detail?id=4118
-          var test1 = new String('abc'); // eslint-disable-line no-new-wrappers
-          test1[5] = 'de';
-          if (Object.getOwnPropertyNames(test1)[0] === '5') {
-            return false;
-          }
-
-          // https://bugs.chromium.org/p/v8/issues/detail?id=3056
-          var test2 = {};
-          for (var i = 0; i < 10; i++) {
-            test2['_' + String.fromCharCode(i)] = i;
-          }
-          var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
-            return test2[n];
-          });
-          if (order2.join('') !== '0123456789') {
-            return false;
-          }
-
-          // https://bugs.chromium.org/p/v8/issues/detail?id=3056
-          var test3 = {};
-          'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
-            test3[letter] = letter;
-          });
-          if (Object.keys(Object.assign({}, test3)).join('') !== 'abcdefghijklmnopqrst') {
-            return false;
-          }
-
-          return true;
-        } catch (err) {
-          // We don't expect any of the above to throw, but better to be safe.
-          return false;
-        }
-      }
-
-      module.exports = shouldUseNative() ? Object.assign : function (target, source) {
-        var from;
-        var to = toObject(target);
-        var symbols;
-
-        for (var s = 1; s < arguments.length; s++) {
-          from = Object(arguments[s]);
-
-          for (var key in from) {
-            if (hasOwnProperty.call(from, key)) {
-              to[key] = from[key];
-            }
-          }
-
-          if (getOwnPropertySymbols) {
-            symbols = getOwnPropertySymbols(from);
-            for (var i = 0; i < symbols.length; i++) {
-              if (propIsEnumerable.call(from, symbols[i])) {
-                to[symbols[i]] = from[symbols[i]];
-              }
-            }
-          }
-        }
-
-        return to;
-      };
-    }, {}], 11: [function (require, module, exports) {
-      var trim = require('trim'),
-          forEach = require('for-each'),
-          isArray = function isArray(arg) {
-        return Object.prototype.toString.call(arg) === '[object Array]';
-      };
-
-      module.exports = function (headers) {
-        if (!headers) return {};
-
-        var result = {};
-
-        forEach(trim(headers).split('\n'), function (row) {
-          var index = row.indexOf(':'),
-              key = trim(row.slice(0, index)).toLowerCase(),
-              value = trim(row.slice(index + 1));
-
-          if (typeof result[key] === 'undefined') {
-            result[key] = value;
-          } else if (isArray(result[key])) {
-            result[key].push(value);
-          } else {
-            result[key] = [result[key], value];
-          }
-        });
-
-        return result;
-      };
-    }, { "for-each": 6, "trim": 18 }], 12: [function (require, module, exports) {
-      'use strict';
-
-      var strictUriEncode = require('strict-uri-encode');
-      var objectAssign = require('object-assign');
-      var decodeComponent = require('decode-uri-component');
-
-      function encoderForArrayFormat(opts) {
-        switch (opts.arrayFormat) {
-          case 'index':
-            return function (key, value, index) {
-              return value === null ? [encode(key, opts), '[', index, ']'].join('') : [encode(key, opts), '[', encode(index, opts), ']=', encode(value, opts)].join('');
-            };
-
-          case 'bracket':
-            return function (key, value) {
-              return value === null ? encode(key, opts) : [encode(key, opts), '[]=', encode(value, opts)].join('');
-            };
-
-          default:
-            return function (key, value) {
-              return value === null ? encode(key, opts) : [encode(key, opts), '=', encode(value, opts)].join('');
-            };
-        }
-      }
-
-      function parserForArrayFormat(opts) {
-        var result;
-
-        switch (opts.arrayFormat) {
-          case 'index':
-            return function (key, value, accumulator) {
-              result = /\[(\d*)\]$/.exec(key);
-
-              key = key.replace(/\[\d*\]$/, '');
-
-              if (!result) {
-                accumulator[key] = value;
-                return;
-              }
-
-              if (accumulator[key] === undefined) {
-                accumulator[key] = {};
-              }
-
-              accumulator[key][result[1]] = value;
-            };
-
-          case 'bracket':
-            return function (key, value, accumulator) {
-              result = /(\[\])$/.exec(key);
-              key = key.replace(/\[\]$/, '');
-
-              if (!result) {
-                accumulator[key] = value;
-                return;
-              } else if (accumulator[key] === undefined) {
-                accumulator[key] = [value];
-                return;
-              }
-
-              accumulator[key] = [].concat(accumulator[key], value);
-            };
-
-          default:
-            return function (key, value, accumulator) {
-              if (accumulator[key] === undefined) {
-                accumulator[key] = value;
-                return;
-              }
-
-              accumulator[key] = [].concat(accumulator[key], value);
-            };
-        }
-      }
-
-      function encode(value, opts) {
-        if (opts.encode) {
-          return opts.strict ? strictUriEncode(value) : encodeURIComponent(value);
-        }
-
-        return value;
-      }
-
-      function keysSorter(input) {
-        if (Array.isArray(input)) {
-          return input.sort();
-        } else if ((typeof input === "undefined" ? "undefined" : _typeof(input)) === 'object') {
-          return keysSorter(Object.keys(input)).sort(function (a, b) {
-            return Number(a) - Number(b);
-          }).map(function (key) {
-            return input[key];
-          });
-        }
-
-        return input;
-      }
-
-      function extract(str) {
-        var queryStart = str.indexOf('?');
-        if (queryStart === -1) {
-          return '';
-        }
-        return str.slice(queryStart + 1);
-      }
-
-      function parse(str, opts) {
-        opts = objectAssign({ arrayFormat: 'none' }, opts);
-
-        var formatter = parserForArrayFormat(opts);
-
-        // Create an object with no prototype
-        // https://github.com/sindresorhus/query-string/issues/47
-        var ret = Object.create(null);
-
-        if (typeof str !== 'string') {
-          return ret;
-        }
-
-        str = str.trim().replace(/^[?#&]/, '');
-
-        if (!str) {
-          return ret;
-        }
-
-        str.split('&').forEach(function (param) {
-          var parts = param.replace(/\+/g, ' ').split('=');
-          // Firefox (pre 40) decodes `%3D` to `=`
-          // https://github.com/sindresorhus/query-string/pull/37
-          var key = parts.shift();
-          var val = parts.length > 0 ? parts.join('=') : undefined;
-
-          // missing `=` should be `null`:
-          // http://w3.org/TR/2012/WD-url-20120524/#collect-url-parameters
-          val = val === undefined ? null : decodeComponent(val);
-
-          formatter(decodeComponent(key), val, ret);
-        });
-
-        return Object.keys(ret).sort().reduce(function (result, key) {
-          var val = ret[key];
-          if (Boolean(val) && (typeof val === "undefined" ? "undefined" : _typeof(val)) === 'object' && !Array.isArray(val)) {
-            // Sort object keys, not values
-            result[key] = keysSorter(val);
-          } else {
-            result[key] = val;
-          }
-
-          return result;
-        }, Object.create(null));
-      }
-
-      exports.extract = extract;
-      exports.parse = parse;
-
-      exports.stringify = function (obj, opts) {
-        var defaults = {
-          encode: true,
-          strict: true,
-          arrayFormat: 'none'
-        };
-
-        opts = objectAssign(defaults, opts);
-
-        if (opts.sort === false) {
-          opts.sort = function () {};
-        }
-
-        var formatter = encoderForArrayFormat(opts);
-
-        return obj ? Object.keys(obj).sort(opts.sort).map(function (key) {
-          var val = obj[key];
-
-          if (val === undefined) {
-            return '';
-          }
-
-          if (val === null) {
-            return encode(key, opts);
-          }
-
-          if (Array.isArray(val)) {
-            var result = [];
-
-            val.slice().forEach(function (val2) {
-              if (val2 === undefined) {
-                return;
-              }
-
-              result.push(formatter(key, val2, result.length));
-            });
-
-            return result.join('&');
-          }
-
-          return encode(key, opts) + '=' + encode(val, opts);
-        }).filter(function (x) {
-          return x.length > 0;
-        }).join('&') : '';
-      };
-
-      exports.parseUrl = function (str, opts) {
-        return {
-          url: str.split('?')[0] || '',
-          query: parse(extract(str), opts)
-        };
-      };
-    }, { "decode-uri-component": 2, "object-assign": 10, "strict-uri-encode": 13 }], 13: [function (require, module, exports) {
-      'use strict';
-
-      module.exports = function (str) {
-        return encodeURIComponent(str).replace(/[!'()*]/g, function (c) {
-          return '%' + c.charCodeAt(0).toString(16).toUpperCase();
-        });
-      };
-    }, {}], 14: [function (require, module, exports) {
-      var unavailable = function unavailable() {
-        throw "This swarm.js function isn't available on the browser.";
-      };
-
-      var fsp = { readFile: unavailable };
-      var files = { download: unavailable, safeDownloadArchived: unavailable, directoryTree: unavailable };
-      var os = { platform: unavailable, arch: unavailable };
-      var path = { join: unavailable, slice: unavailable };
-      var child_process = { spawn: unavailable };
-      var mimetype = { lookup: unavailable };
-      var defaultArchives = {};
-      var downloadUrl = null;
-      var request = require("xhr-request-promise");
-      var bytes = require("eth-lib/lib/bytes");
-      var hash = require("./swarm-hash.js");
-      var pick = require("./pick.js");
-      var swarm = require("./swarm");
-
-      module.exports = swarm({
-        fsp: fsp,
-        files: files,
-        os: os,
-        path: path,
-        child_process: child_process,
-        defaultArchives: defaultArchives,
-        mimetype: mimetype,
-        request: request,
-        downloadUrl: downloadUrl,
-        bytes: bytes,
-        hash: hash,
-        pick: pick
-      });
-    }, { "./pick.js": 15, "./swarm": 17, "./swarm-hash.js": 16, "eth-lib/lib/bytes": 4, "xhr-request-promise": 20 }], 15: [function (require, module, exports) {
-      var picker = function picker(type) {
-        return function () {
-          return new Promise(function (resolve, reject) {
-            var fileLoader = function fileLoader(e) {
-              var directory = {};
-              var totalFiles = e.target.files.length;
-              var loadedFiles = 0;
-              [].map.call(e.target.files, function (file) {
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                  var data = new Uint8Array(e.target.result);
-                  if (type === "directory") {
-                    var path = file.webkitRelativePath;
-                    directory[path.slice(path.indexOf("/") + 1)] = {
-                      type: "text/plain",
-                      data: data
-                    };
-                    if (++loadedFiles === totalFiles) resolve(directory);
-                  } else if (type === "file") {
-                    var _path = file.webkitRelativePath;
-                    resolve({ "type": mimetype.lookup(_path), "data": data });
-                  } else {
-                    resolve(data);
-                  }
-                };
-                reader.readAsArrayBuffer(file);
-              });
-            };
-
-            var fileInput = void 0;
-            if (type === "directory") {
-              fileInput = document.createElement("input");
-              fileInput.addEventListener("change", fileLoader);
-              fileInput.type = "file";
-              fileInput.webkitdirectory = true;
-              fileInput.mozdirectory = true;
-              fileInput.msdirectory = true;
-              fileInput.odirectory = true;
-              fileInput.directory = true;
-            } else {
-              fileInput = document.createElement("input");
-              fileInput.addEventListener("change", fileLoader);
-              fileInput.type = "file";
-            };
-
-            var mouseEvent = document.createEvent("MouseEvents");
-            mouseEvent.initEvent("click", true, false);
-            fileInput.dispatchEvent(mouseEvent);
-          });
-        };
-      };
-
-      module.exports = {
-        data: picker("data"),
-        file: picker("file"),
-        directory: picker("directory")
-      };
-    }, {}], 16: [function (require, module, exports) {
-      // Thanks https://github.com/axic/swarmhash
-
-      var keccak = require("eth-lib/lib/hash").keccak256;
-      var Bytes = require("eth-lib/lib/bytes");
-
-      var swarmHashBlock = function swarmHashBlock(length, data) {
-        var lengthEncoded = Bytes.reverse(Bytes.pad(6, Bytes.fromNumber(length)));
-        var bytes = Bytes.flatten([lengthEncoded, "0x0000", data]);
-        return keccak(bytes).slice(2);
-      };
-
-      // (Bytes | Uint8Array | String) -> String
-      var swarmHash = function swarmHash(data) {
-        if (typeof data === "string" && data.slice(0, 2) !== "0x") {
-          data = Bytes.fromString(data);
-        } else if (typeof data !== "string" && data.length !== undefined) {
-          data = Bytes.fromUint8Array(data);
-        }
-
-        var length = Bytes.length(data);
-
-        if (length <= 4096) {
-          return swarmHashBlock(length, data);
-        }
-
-        var maxSize = 4096;
-        while (maxSize * (4096 / 32) < length) {
-          maxSize *= 4096 / 32;
-        }
-
-        var innerNodes = [];
-        for (var i = 0; i < length; i += maxSize) {
-          var size = maxSize < length - i ? maxSize : length - i;
-          innerNodes.push(swarmHash(Bytes.slice(data, i, i + size)));
-        }
-
-        return swarmHashBlock(length, Bytes.flatten(innerNodes));
-      };
-
-      module.exports = swarmHash;
-    }, { "eth-lib/lib/bytes": 4, "eth-lib/lib/hash": 5 }], 17: [function (require, module, exports) {
-      // TODO: this is a temporary fix to hide those libraries from the browser. A
-      // slightly better long-term solution would be to split this file into two,
-      // separating the functions that are used on Node.js from the functions that
-      // are used only on the browser.
-      module.exports = function (_ref) {
-        var fsp = _ref.fsp,
-            files = _ref.files,
-            os = _ref.os,
-            path = _ref.path,
-            child_process = _ref.child_process,
-            mimetype = _ref.mimetype,
-            defaultArchives = _ref.defaultArchives,
-            request = _ref.request,
-            downloadUrl = _ref.downloadUrl,
-            bytes = _ref.bytes,
-            hash = _ref.hash,
-            pick = _ref.pick;
-
-        // ∀ a . String -> JSON -> Map String a -o Map String a
-        //   Inserts a key/val pair in an object impurely.
-        var impureInsert = function impureInsert(key) {
-          return function (val) {
-            return function (map) {
-              return map[key] = val, map;
-            };
-          };
-        };
-
-        // String -> JSON -> Map String JSON
-        //   Merges an array of keys and an array of vals into an object.
-        var toMap = function toMap(keys) {
-          return function (vals) {
-            var map = {};
-            for (var i = 0, l = keys.length; i < l; ++i) {
-              map[keys[i]] = vals[i];
-            }return map;
-          };
-        };
-
-        // ∀ a . Map String a -> Map String a -> Map String a
-        //   Merges two maps into one.
-        var merge = function merge(a) {
-          return function (b) {
-            var map = {};
-            for (var key in a) {
-              map[key] = a[key];
-            }for (var _key in b) {
-              map[_key] = b[_key];
-            }return map;
-          };
-        };
-
-        // ∀ a . [a] -> [a] -> Bool
-        var equals = function equals(a) {
-          return function (b) {
-            if (a.length !== b.length) {
-              return false;
-            } else {
-              for (var i = 0, l = a.length; i < a; ++i) {
-                if (a[i] !== b[i]) return false;
-              }
-            }
-            return true;
-          };
-        };
-
-        // String -> String -> String
-        var rawUrl = function rawUrl(swarmUrl) {
-          return function (hash) {
-            return swarmUrl + "/bzzr:/" + hash;
-          };
-        };
-
-        // String -> String -> Promise Uint8Array
-        //   Gets the raw contents of a Swarm hash address.
-        var downloadData = function downloadData(swarmUrl) {
-          return function (hash) {
-            return request(rawUrl(swarmUrl)(hash), { responseType: "arraybuffer" }).then(function (arrayBuffer) {
-              var uint8Array = new Uint8Array(arrayBuffer);
-              var error404 = [52, 48, 52, 32, 112, 97, 103, 101, 32, 110, 111, 116, 32, 102, 111, 117, 110, 100, 10];
-              if (equals(uint8Array)(error404)) throw "Error 404.";
-              return uint8Array;
-            });
-          };
-        };
-
-        // type Entry = {"type": String, "hash": String}
-        // type File = {"type": String, "data": Uint8Array}
-
-        // String -> String -> Promise (Map String Entry)
-        //   Solves the manifest of a Swarm address recursively.
-        //   Returns a map from full paths to entries.
-        var downloadEntries = function downloadEntries(swarmUrl) {
-          return function (hash) {
-            var search = function search(hash) {
-              return function (path) {
-                return function (routes) {
-                  // Formats an entry to the Swarm.js type.
-                  var format = function format(entry) {
-                    return {
-                      type: entry.contentType,
-                      hash: entry.hash };
-                  };
-
-                  // To download a single entry:
-                  //   if type is bzz-manifest, go deeper
-                  //   if not, add it to the routing table
-                  var downloadEntry = function downloadEntry(entry) {
-                    if (entry.path === undefined) {
-                      return Promise.resolve();
-                    } else {
-                      return entry.contentType === "application/bzz-manifest+json" ? search(entry.hash)(path + entry.path)(routes) : Promise.resolve(impureInsert(path + entry.path)(format(entry))(routes));
-                    }
-                  };
-
-                  // Downloads the initial manifest and then each entry.
-                  return downloadData(swarmUrl)(hash).then(function (text) {
-                    return JSON.parse(toString(text)).entries;
-                  }).then(function (entries) {
-                    return Promise.all(entries.map(downloadEntry));
-                  }).then(function () {
-                    return routes;
-                  });
-                };
-              };
-            };
-
-            return search(hash)("")({});
-          };
-        };
-
-        // String -> String -> Promise (Map String String)
-        //   Same as `downloadEntries`, but returns only hashes (no types).
-        var downloadRoutes = function downloadRoutes(swarmUrl) {
-          return function (hash) {
-            return downloadEntries(swarmUrl)(hash).then(function (entries) {
-              return toMap(Object.keys(entries))(Object.keys(entries).map(function (route) {
-                return entries[route].hash;
-              }));
-            });
-          };
-        };
-
-        // String -> String -> Promise (Map String File)
-        //   Gets the entire directory tree in a Swarm address.
-        //   Returns a promise mapping paths to file contents.
-        var downloadDirectory = function downloadDirectory(swarmUrl) {
-          return function (hash) {
-            return downloadEntries(swarmUrl)(hash).then(function (entries) {
-              var paths = Object.keys(entries);
-              var hashs = paths.map(function (path) {
-                return entries[path].hash;
-              });
-              var types = paths.map(function (path) {
-                return entries[path].type;
-              });
-              var datas = hashs.map(downloadData(swarmUrl));
-              var files = function files(datas) {
-                return datas.map(function (data, i) {
-                  return { type: types[i], data: data };
-                });
-              };
-              return Promise.all(datas).then(function (datas) {
-                return toMap(paths)(files(datas));
-              });
-            });
-          };
-        };
-
-        // String -> String -> String -> Promise String
-        //   Gets the raw contents of a Swarm hash address.
-        //   Returns a promise with the downloaded file path.
-        var downloadDataToDisk = function downloadDataToDisk(swarmUrl) {
-          return function (hash) {
-            return function (filePath) {
-              return files.download(rawUrl(swarmUrl)(hash))(filePath);
-            };
-          };
-        };
-
-        // String -> String -> String -> Promise (Map String String)
-        //   Gets the entire directory tree in a Swarm address.
-        //   Returns a promise mapping paths to file contents.
-        var downloadDirectoryToDisk = function downloadDirectoryToDisk(swarmUrl) {
-          return function (hash) {
-            return function (dirPath) {
-              return downloadRoutes(swarmUrl)(hash).then(function (routingTable) {
-                var downloads = [];
-                for (var route in routingTable) {
-                  if (route.length > 0) {
-                    var filePath = path.join(dirPath, route);
-                    downloads.push(downloadDataToDisk(swarmUrl)(routingTable[route])(filePath));
-                  };
-                };
-                return Promise.all(downloads).then(function () {
-                  return dirPath;
-                });
-              });
-            };
-          };
-        };
-
-        // String -> Uint8Array -> Promise String
-        //   Uploads raw data to Swarm.
-        //   Returns a promise with the uploaded hash.
-        var uploadData = function uploadData(swarmUrl) {
-          return function (data) {
-            return request(swarmUrl + "/bzzr:/", {
-              body: typeof data === "string" ? fromString(data) : data,
-              method: "POST" });
-          };
-        };
-
-        // String -> String -> String -> File -> Promise String
-        //   Uploads a file to the Swarm manifest at a given hash, under a specific
-        //   route. Returns a promise containing the uploaded hash.
-        //   FIXME: for some reasons Swarm-Gateways is sometimes returning
-        //   error 404 (bad request), so we retry up to 3 times. Why?
-        var uploadToManifest = function uploadToManifest(swarmUrl) {
-          return function (hash) {
-            return function (route) {
-              return function (file) {
-                var attempt = function attempt(n) {
-                  var slashRoute = route[0] === "/" ? route : "/" + route;
-                  var url = swarmUrl + "/bzz:/" + hash + slashRoute;
-                  var opt = {
-                    method: "PUT",
-                    headers: { "Content-Type": file.type },
-                    body: file.data };
-                  return request(url, opt).then(function (response) {
-                    if (response.indexOf("error") !== -1) {
-                      throw response;
-                    }
-                    return response;
-                  }).catch(function (e) {
-                    return n > 0 && attempt(n - 1);
-                  });
-                };
-                return attempt(3);
-              };
-            };
-          };
-        };
-
-        // String -> {type: String, data: Uint8Array} -> Promise String
-        var uploadFile = function uploadFile(swarmUrl) {
-          return function (file) {
-            return uploadDirectory(swarmUrl)({ "": file });
-          };
-        };
-
-        // String -> String -> Promise String
-        var uploadFileFromDisk = function uploadFileFromDisk(swarmUrl) {
-          return function (filePath) {
-            return fsp.readFile(filePath).then(function (data) {
-              return uploadFile(swarmUrl)({ type: mimetype.lookup(filePath), data: data });
-            });
-          };
-        };
-
-        // String -> Map String File -> Promise String
-        //   Uploads a directory to Swarm. The directory is
-        //   represented as a map of routes and files.
-        //   A default path is encoded by having a "" route.
-        var uploadDirectory = function uploadDirectory(swarmUrl) {
-          return function (directory) {
-            return uploadData(swarmUrl)("{}").then(function (hash) {
-              var uploadRoute = function uploadRoute(route) {
-                return function (hash) {
-                  return uploadToManifest(swarmUrl)(hash)(route)(directory[route]);
-                };
-              };
-              var uploadToHash = function uploadToHash(hash, route) {
-                return hash.then(uploadRoute(route));
-              };
-              return Object.keys(directory).reduce(uploadToHash, Promise.resolve(hash));
-            });
-          };
-        };
-
-        // String -> Promise String
-        var uploadDataFromDisk = function uploadDataFromDisk(swarmUrl) {
-          return function (filePath) {
-            return fsp.readFile(filePath).then(uploadData(swarmUrl));
-          };
-        };
-
-        // String -> Nullable String -> String -> Promise String
-        var uploadDirectoryFromDisk = function uploadDirectoryFromDisk(swarmUrl) {
-          return function (defaultPath) {
-            return function (dirPath) {
-              return files.directoryTree(dirPath).then(function (fullPaths) {
-                return Promise.all(fullPaths.map(function (path) {
-                  return fsp.readFile(path);
-                })).then(function (datas) {
-                  var paths = fullPaths.map(function (path) {
-                    return path.slice(dirPath.length);
-                  });
-                  var types = fullPaths.map(function (path) {
-                    return mimetype.lookup(path) || "text/plain";
-                  });
-                  return toMap(paths)(datas.map(function (data, i) {
-                    return { type: types[i], data: data };
-                  }));
-                });
-              }).then(function (directory) {
-                return merge(defaultPath ? { "": directory[defaultPath] } : {})(directory);
-              }).then(uploadDirectory(swarmUrl));
-            };
-          };
-        };
-
-        // String -> UploadInfo -> Promise String
-        //   Simplified multi-type upload which calls the correct
-        //   one based on the type of the argument given.
-        var _upload = function _upload(swarmUrl) {
-          return function (arg) {
-            // Upload raw data from browser
-            if (arg.pick === "data") {
-              return pick.data().then(uploadData(swarmUrl));
-
-              // Upload a file from browser
-            } else if (arg.pick === "file") {
-              return pick.file().then(uploadFile(swarmUrl));
-
-              // Upload a directory from browser
-            } else if (arg.pick === "directory") {
-              return pick.directory().then(uploadDirectory(swarmUrl));
-
-              // Upload directory/file from disk
-            } else if (arg.path) {
-              switch (arg.kind) {
-                case "data":
-                  return uploadDataFromDisk(swarmUrl)(arg.path);
-                case "file":
-                  return uploadFileFromDisk(swarmUrl)(arg.path);
-                case "directory":
-                  return uploadDirectoryFromDisk(swarmUrl)(arg.defaultFile)(arg.path);
-              };
-
-              // Upload UTF-8 string or raw data (buffer)
-            } else if (arg.length || typeof arg === "string") {
-              return uploadData(swarmUrl)(arg);
-
-              // Upload directory with JSON
-            } else if (arg instanceof Object) {
-              return uploadDirectory(swarmUrl)(arg);
-            }
-
-            return Promise.reject(new Error("Bad arguments"));
-          };
-        };
-
-        // String -> String -> Nullable String -> Promise (String | Uint8Array | Map String Uint8Array)
-        //   Simplified multi-type download which calls the correct function based on
-        //   the type of the argument given, and on whether the Swwarm address has a
-        //   directory or a file.
-        var _download = function _download(swarmUrl) {
-          return function (hash) {
-            return function (path) {
-              return isDirectory(swarmUrl)(hash).then(function (isDir) {
-                if (isDir) {
-                  return path ? downloadDirectoryToDisk(swarmUrl)(hash)(path) : downloadDirectory(swarmUrl)(hash);
-                } else {
-                  return path ? downloadDataToDisk(swarmUrl)(hash)(path) : downloadData(swarmUrl)(hash);
-                }
-              });
-            };
-          };
-        };
-
-        // String -> Promise String
-        //   Downloads the Swarm binaries into a path. Returns a promise that only
-        //   resolves when the exact Swarm file is there, and verified to be correct.
-        //   If it was already there to begin with, skips the download.
-        var downloadBinary = function downloadBinary(path, archives) {
-          var system = os.platform().replace("win32", "windows") + "-" + (os.arch() === "x64" ? "amd64" : "386");
-          var archive = (archives || defaultArchives)[system];
-          var archiveUrl = downloadUrl + archive.archive + ".tar.gz";
-          var archiveMD5 = archive.archiveMD5;
-          var binaryMD5 = archive.binaryMD5;
-          return files.safeDownloadArchived(archiveUrl)(archiveMD5)(binaryMD5)(path);
-        };
-
-        // type SwarmSetup = {
-        //   account : String,
-        //   password : String,
-        //   dataDir : String,
-        //   binPath : String,
-        //   ensApi : String,
-        //   onDownloadProgress : Number ~> (),
-        //   archives : [{
-        //     archive: String,
-        //     binaryMD5: String,
-        //     archiveMD5: String
-        //   }]
-        // }
-
-        // SwarmSetup ~> Promise Process
-        //   Starts the Swarm process.
-        var startProcess = function startProcess(swarmSetup) {
-          return new Promise(function (resolve, reject) {
-            var spawn = child_process.spawn;
-
-            var hasString = function hasString(str) {
-              return function (buffer) {
-                return ('' + buffer).indexOf(str) !== -1;
-              };
-            };
-            var account = swarmSetup.account,
-                password = swarmSetup.password,
-                dataDir = swarmSetup.dataDir,
-                ensApi = swarmSetup.ensApi,
-                privateKey = swarmSetup.privateKey;
-
-            var STARTUP_TIMEOUT_SECS = 3;
-            var WAITING_PASSWORD = 0;
-            var STARTING = 1;
-            var LISTENING = 2;
-            var PASSWORD_PROMPT_HOOK = "Passphrase";
-            var LISTENING_HOOK = "Swarm http proxy started";
-
-            var state = WAITING_PASSWORD;
-
-            var swarmProcess = spawn(swarmSetup.binPath, ['--bzzaccount', account || privateKey, '--datadir', dataDir, '--ens-api', ensApi]);
-
-            var handleProcessOutput = function handleProcessOutput(data) {
-              if (state === WAITING_PASSWORD && hasString(PASSWORD_PROMPT_HOOK)(data)) {
-                setTimeout(function () {
-                  state = STARTING;
-                  swarmProcess.stdin.write(password + '\n');
-                }, 500);
-              } else if (hasString(LISTENING_HOOK)(data)) {
-                state = LISTENING;
-                clearTimeout(timeout);
-                resolve(swarmProcess);
-              }
-            };
-
-            swarmProcess.stdout.on('data', handleProcessOutput);
-            swarmProcess.stderr.on('data', handleProcessOutput);
-            //swarmProcess.on('close', () => setTimeout(restart, 2000));
-
-            var restart = function restart() {
-              return startProcess(swarmSetup).then(resolve).catch(reject);
-            };
-            var error = function error() {
-              return reject(new Error("Couldn't start swarm process."));
-            };
-            var timeout = setTimeout(error, 20000);
-          });
-        };
-
-        // Process ~> Promise ()
-        //   Stops the Swarm process.
-        var stopProcess = function stopProcess(process) {
-          return new Promise(function (resolve, reject) {
-            process.stderr.removeAllListeners('data');
-            process.stdout.removeAllListeners('data');
-            process.stdin.removeAllListeners('error');
-            process.removeAllListeners('error');
-            process.removeAllListeners('exit');
-            process.kill('SIGINT');
-
-            var killTimeout = setTimeout(function () {
-              return process.kill('SIGKILL');
-            }, 8000);
-
-            process.once('close', function () {
-              clearTimeout(killTimeout);
-              resolve();
-            });
-          });
-        };
-
-        // SwarmSetup -> (SwarmAPI -> Promise ()) -> Promise ()
-        //   Receives a Swarm configuration object and a callback function. It then
-        //   checks if a local Swarm node is running. If no local Swarm is found, it
-        //   downloads the Swarm binaries to the dataDir (if not there), checksums,
-        //   starts the Swarm process and calls the callback function with an API
-        //   object using the local node. That callback must return a promise which
-        //   will resolve when it is done using the API, so that this function can
-        //   close the Swarm process properly. Returns a promise that resolves when the
-        //   user is done with the API and the Swarm process is closed.
-        //   TODO: check if Swarm process is already running (improve `isAvailable`)
-        var local = function local(swarmSetup) {
-          return function (useAPI) {
-            return _isAvailable("http://localhost:8500").then(function (isAvailable) {
-              return isAvailable ? useAPI(at("http://localhost:8500")).then(function () {}) : downloadBinary(swarmSetup.binPath, swarmSetup.archives).onData(function (data) {
-                return (swarmSetup.onProgress || function () {})(data.length);
-              }).then(function () {
-                return startProcess(swarmSetup);
-              }).then(function (process) {
-                return useAPI(at("http://localhost:8500")).then(function () {
-                  return process;
-                });
-              }).then(stopProcess);
-            });
-          };
-        };
-
-        // String ~> Promise Bool
-        //   Returns true if Swarm is available on `url`.
-        //   Perfoms a test upload to determine that.
-        //   TODO: improve this?
-        var _isAvailable = function _isAvailable(swarmUrl) {
-          var testFile = "test";
-          var testHash = "c9a99c7d326dcc6316f32fe2625b311f6dc49a175e6877681ded93137d3569e7";
-          return uploadData(swarmUrl)(testFile).then(function (hash) {
-            return hash === testHash;
-          }).catch(function () {
-            return false;
-          });
-        };
-
-        // String -> String ~> Promise Bool
-        //   Returns a Promise which is true if that Swarm address is a directory.
-        //   Determines that by checking that it (i) is a JSON, (ii) has a .entries.
-        //   TODO: improve this?
-        var isDirectory = function isDirectory(swarmUrl) {
-          return function (hash) {
-            return downloadData(swarmUrl)(hash).then(function (data) {
-              try {
-                return !!JSON.parse(toString(data)).entries;
-              } catch (e) {
-                return false;
-              }
-            });
-          };
-        };
-
-        // Uncurries a function; used to allow the f(x,y,z) style on exports.
-        var uncurry = function uncurry(f) {
-          return function (a, b, c, d, e) {
-            var p;
-            // Hardcoded because efficiency (`arguments` is very slow).
-            if (typeof a !== "undefined") p = f(a);
-            if (typeof b !== "undefined") p = f(b);
-            if (typeof c !== "undefined") p = f(c);
-            if (typeof d !== "undefined") p = f(d);
-            if (typeof e !== "undefined") p = f(e);
-            return p;
-          };
-        };
-
-        // () -> Promise Bool
-        //   Not sure how to mock Swarm to test it properly. Ideas?
-        var test = function test() {
-          return Promise.resolve(true);
-        };
-
-        // Uint8Array -> String
-        var toString = function toString(uint8Array) {
-          return bytes.toString(bytes.fromUint8Array(uint8Array));
-        };
-
-        // String -> Uint8Array
-        var fromString = function fromString(string) {
-          return bytes.toUint8Array(bytes.fromString(string));
-        };
-
-        // String -> SwarmAPI
-        //   Fixes the `swarmUrl`, returning an API where you don't have to pass it.
-        var at = function at(swarmUrl) {
-          return {
-            download: function download(hash, path) {
-              return _download(swarmUrl)(hash)(path);
-            },
-            downloadData: uncurry(downloadData(swarmUrl)),
-            downloadDataToDisk: uncurry(downloadDataToDisk(swarmUrl)),
-            downloadDirectory: uncurry(downloadDirectory(swarmUrl)),
-            downloadDirectoryToDisk: uncurry(downloadDirectoryToDisk(swarmUrl)),
-            downloadEntries: uncurry(downloadEntries(swarmUrl)),
-            downloadRoutes: uncurry(downloadRoutes(swarmUrl)),
-            isAvailable: function isAvailable() {
-              return _isAvailable(swarmUrl);
-            },
-            upload: function upload(arg) {
-              return _upload(swarmUrl)(arg);
-            },
-            uploadData: uncurry(uploadData(swarmUrl)),
-            uploadFile: uncurry(uploadFile(swarmUrl)),
-            uploadFileFromDisk: uncurry(uploadFile(swarmUrl)),
-            uploadDataFromDisk: uncurry(uploadDataFromDisk(swarmUrl)),
-            uploadDirectory: uncurry(uploadDirectory(swarmUrl)),
-            uploadDirectoryFromDisk: uncurry(uploadDirectoryFromDisk(swarmUrl)),
-            uploadToManifest: uncurry(uploadToManifest(swarmUrl)),
-            pick: pick,
-            hash: hash,
-            fromString: fromString,
-            toString: toString
-          };
-        };
-
-        return {
-          at: at,
-          local: local,
-          download: _download,
-          downloadBinary: downloadBinary,
-          downloadData: downloadData,
-          downloadDataToDisk: downloadDataToDisk,
-          downloadDirectory: downloadDirectory,
-          downloadDirectoryToDisk: downloadDirectoryToDisk,
-          downloadEntries: downloadEntries,
-          downloadRoutes: downloadRoutes,
-          isAvailable: _isAvailable,
-          startProcess: startProcess,
-          stopProcess: stopProcess,
-          upload: _upload,
-          uploadData: uploadData,
-          uploadDataFromDisk: uploadDataFromDisk,
-          uploadFile: uploadFile,
-          uploadFileFromDisk: uploadFileFromDisk,
-          uploadDirectory: uploadDirectory,
-          uploadDirectoryFromDisk: uploadDirectoryFromDisk,
-          uploadToManifest: uploadToManifest,
-          pick: pick,
-          hash: hash,
-          fromString: fromString,
-          toString: toString
-        };
-      };
-    }, {}], 18: [function (require, module, exports) {
-
-      exports = module.exports = trim;
-
-      function trim(str) {
-        return str.replace(/^\s*|\s*$/g, '');
-      }
-
-      exports.left = function (str) {
-        return str.replace(/^\s*/, '');
-      };
-
-      exports.right = function (str) {
-        return str.replace(/\s*$/, '');
-      };
-    }, {}], 19: [function (require, module, exports) {
-      module.exports = urlSetQuery;
-      function urlSetQuery(url, query) {
-        if (query) {
-          // remove optional leading symbols
-          query = query.trim().replace(/^(\?|#|&)/, '');
-
-          // don't append empty query
-          query = query ? '?' + query : query;
-
-          var parts = url.split(/[\?\#]/);
-          var start = parts[0];
-          if (query && /\:\/\/[^\/]*$/.test(start)) {
-            // e.g. http://foo.com -> http://foo.com/
-            start = start + '/';
-          }
-          var match = url.match(/(\#.*)$/);
-          url = start + query;
-          if (match) {
-            // add hash back in
-            url = url + match[0];
-          }
-        }
-        return url;
-      }
-    }, {}], 20: [function (require, module, exports) {
-      var request = require('xhr-request');
-
-      module.exports = function (url, options) {
-        return new Promise(function (resolve, reject) {
-          request(url, options, function (err, data) {
-            if (err) reject(err);else resolve(data);
-          });
-        });
-      };
-    }, { "xhr-request": 21 }], 21: [function (require, module, exports) {
-      var queryString = require('query-string');
-      var setQuery = require('url-set-query');
-      var assign = require('object-assign');
-      var ensureHeader = require('./lib/ensure-header.js');
-
-      // this is replaced in the browser
-      var request = require('./lib/request.js');
-
-      var mimeTypeJson = 'application/json';
-      var noop = function noop() {};
-
-      module.exports = xhrRequest;
-      function xhrRequest(url, opt, cb) {
-        if (!url || typeof url !== 'string') {
-          throw new TypeError('must specify a URL');
-        }
-        if (typeof opt === 'function') {
-          cb = opt;
-          opt = {};
-        }
-        if (cb && typeof cb !== 'function') {
-          throw new TypeError('expected cb to be undefined or a function');
-        }
-
-        cb = cb || noop;
-        opt = opt || {};
-
-        var defaultResponse = opt.json ? 'json' : 'text';
-        opt = assign({ responseType: defaultResponse }, opt);
-
-        var headers = opt.headers || {};
-        var method = (opt.method || 'GET').toUpperCase();
-        var query = opt.query;
-        if (query) {
-          if (typeof query !== 'string') {
-            query = queryString.stringify(query);
-          }
-          url = setQuery(url, query);
-        }
-
-        // allow json response
-        if (opt.responseType === 'json') {
-          ensureHeader(headers, 'Accept', mimeTypeJson);
-        }
-
-        // if body content is json
-        if (opt.json && method !== 'GET' && method !== 'HEAD') {
-          ensureHeader(headers, 'Content-Type', mimeTypeJson);
-          opt.body = JSON.stringify(opt.body);
-        }
-
-        opt.method = method;
-        opt.url = url;
-        opt.headers = headers;
-        delete opt.query;
-        delete opt.json;
-
-        return request(opt, cb);
-      }
-    }, { "./lib/ensure-header.js": 22, "./lib/request.js": 24, "object-assign": 10, "query-string": 12, "url-set-query": 19 }], 22: [function (require, module, exports) {
-      module.exports = ensureHeader;
-      function ensureHeader(headers, key, value) {
-        var lower = key.toLowerCase();
-        if (!headers[key] && !headers[lower]) {
-          headers[key] = value;
-        }
-      }
-    }, {}], 23: [function (require, module, exports) {
-      module.exports = getResponse;
-      function getResponse(opt, resp) {
-        if (!resp) return null;
-        return {
-          statusCode: resp.statusCode,
-          headers: resp.headers,
-          method: opt.method,
-          url: opt.url,
-          // the XHR object in browser, http response in Node
-          rawRequest: resp.rawRequest ? resp.rawRequest : resp
-        };
-      }
-    }, {}], 24: [function (require, module, exports) {
-      var xhr = require('xhr');
-      var normalize = require('./normalize-response');
-      var noop = function noop() {};
-
-      module.exports = xhrRequest;
-      function xhrRequest(opt, cb) {
-        delete opt.uri;
-
-        // for better JSON.parse error handling than xhr module
-        var useJson = false;
-        if (opt.responseType === 'json') {
-          opt.responseType = 'text';
-          useJson = true;
-        }
-
-        var req = xhr(opt, function xhrRequestResult(err, resp, body) {
-          if (useJson && !err) {
-            try {
-              var text = resp.rawRequest.responseText;
-              body = JSON.parse(text);
-            } catch (e) {
-              err = e;
-            }
-          }
-
-          resp = normalize(opt, resp);
-          if (err) cb(err, null, resp);else cb(err, body, resp);
-          cb = noop;
-        });
-
-        // Patch abort() so that it also calls the callback, but with an error
-        var onabort = req.onabort;
-        req.onabort = function () {
-          var ret = onabort.apply(req, Array.prototype.slice.call(arguments));
-          cb(new Error('XHR Aborted'));
-          cb = noop;
-          return ret;
-        };
-
-        return req;
-      }
-    }, { "./normalize-response": 23, "xhr": 25 }], 25: [function (require, module, exports) {
-      "use strict";
-
-      var window = require("global/window");
-      var isFunction = require("is-function");
-      var parseHeaders = require("parse-headers");
-      var xtend = require("xtend");
-
-      module.exports = createXHR;
-      // Allow use of default import syntax in TypeScript
-      module.exports.default = createXHR;
-      createXHR.XMLHttpRequest = window.XMLHttpRequest || noop;
-      createXHR.XDomainRequest = "withCredentials" in new createXHR.XMLHttpRequest() ? createXHR.XMLHttpRequest : window.XDomainRequest;
-
-      forEachArray(["get", "put", "post", "patch", "head", "delete"], function (method) {
-        createXHR[method === "delete" ? "del" : method] = function (uri, options, callback) {
-          options = initParams(uri, options, callback);
-          options.method = method.toUpperCase();
-          return _createXHR(options);
-        };
-      });
-
-      function forEachArray(array, iterator) {
-        for (var i = 0; i < array.length; i++) {
-          iterator(array[i]);
-        }
-      }
-
-      function isEmpty(obj) {
-        for (var i in obj) {
-          if (obj.hasOwnProperty(i)) return false;
-        }
-        return true;
-      }
-
-      function initParams(uri, options, callback) {
-        var params = uri;
-
-        if (isFunction(options)) {
-          callback = options;
-          if (typeof uri === "string") {
-            params = { uri: uri };
-          }
-        } else {
-          params = xtend(options, { uri: uri });
-        }
-
-        params.callback = callback;
-        return params;
-      }
-
-      function createXHR(uri, options, callback) {
-        options = initParams(uri, options, callback);
-        return _createXHR(options);
-      }
-
-      function _createXHR(options) {
-        if (typeof options.callback === "undefined") {
-          throw new Error("callback argument missing");
-        }
-
-        var called = false;
-        var callback = function cbOnce(err, response, body) {
-          if (!called) {
-            called = true;
-            options.callback(err, response, body);
-          }
-        };
-
-        function readystatechange() {
-          if (xhr.readyState === 4) {
-            setTimeout(loadFunc, 0);
-          }
-        }
-
-        function getBody() {
-          // Chrome with requestType=blob throws errors arround when even testing access to responseText
-          var body = undefined;
-
-          if (xhr.response) {
-            body = xhr.response;
-          } else {
-            body = xhr.responseText || getXml(xhr);
-          }
-
-          if (isJson) {
-            try {
-              body = JSON.parse(body);
-            } catch (e) {}
-          }
-
-          return body;
-        }
-
-        function errorFunc(evt) {
-          clearTimeout(timeoutTimer);
-          if (!(evt instanceof Error)) {
-            evt = new Error("" + (evt || "Unknown XMLHttpRequest Error"));
-          }
-          evt.statusCode = 0;
-          return callback(evt, failureResponse);
-        }
-
-        // will load the data & process the response in a special response object
-        function loadFunc() {
-          if (aborted) return;
-          var status;
-          clearTimeout(timeoutTimer);
-          if (options.useXDR && xhr.status === undefined) {
-            //IE8 CORS GET successful response doesn't have a status field, but body is fine
-            status = 200;
-          } else {
-            status = xhr.status === 1223 ? 204 : xhr.status;
-          }
-          var response = failureResponse;
-          var err = null;
-
-          if (status !== 0) {
-            response = {
-              body: getBody(),
-              statusCode: status,
-              method: method,
-              headers: {},
-              url: uri,
-              rawRequest: xhr
-            };
-            if (xhr.getAllResponseHeaders) {
-              //remember xhr can in fact be XDR for CORS in IE
-              response.headers = parseHeaders(xhr.getAllResponseHeaders());
-            }
-          } else {
-            err = new Error("Internal XMLHttpRequest Error");
-          }
-          return callback(err, response, response.body);
-        }
-
-        var xhr = options.xhr || null;
-
-        if (!xhr) {
-          if (options.cors || options.useXDR) {
-            xhr = new createXHR.XDomainRequest();
-          } else {
-            xhr = new createXHR.XMLHttpRequest();
-          }
-        }
-
-        var key;
-        var aborted;
-        var uri = xhr.url = options.uri || options.url;
-        var method = xhr.method = options.method || "GET";
-        var body = options.body || options.data;
-        var headers = xhr.headers = options.headers || {};
-        var sync = !!options.sync;
-        var isJson = false;
-        var timeoutTimer;
-        var failureResponse = {
-          body: undefined,
-          headers: {},
-          statusCode: 0,
-          method: method,
-          url: uri,
-          rawRequest: xhr
-        };
-
-        if ("json" in options && options.json !== false) {
-          isJson = true;
-          headers["accept"] || headers["Accept"] || (headers["Accept"] = "application/json"); //Don't override existing accept header declared by user
-          if (method !== "GET" && method !== "HEAD") {
-            headers["content-type"] || headers["Content-Type"] || (headers["Content-Type"] = "application/json"); //Don't override existing accept header declared by user
-            body = JSON.stringify(options.json === true ? body : options.json);
-          }
-        }
-
-        xhr.onreadystatechange = readystatechange;
-        xhr.onload = loadFunc;
-        xhr.onerror = errorFunc;
-        // IE9 must have onprogress be set to a unique function.
-        xhr.onprogress = function () {
-          // IE must die
-        };
-        xhr.onabort = function () {
-          aborted = true;
-        };
-        xhr.ontimeout = errorFunc;
-        xhr.open(method, uri, !sync, options.username, options.password);
-        //has to be after open
-        if (!sync) {
-          xhr.withCredentials = !!options.withCredentials;
-        }
-        // Cannot set timeout with sync request
-        // not setting timeout on the xhr object, because of old webkits etc. not handling that correctly
-        // both npm's request and jquery 1.x use this kind of timeout, so this is being consistent
-        if (!sync && options.timeout > 0) {
-          timeoutTimer = setTimeout(function () {
-            if (aborted) return;
-            aborted = true; //IE9 may still call readystatechange
-            xhr.abort("timeout");
-            var e = new Error("XMLHttpRequest timeout");
-            e.code = "ETIMEDOUT";
-            errorFunc(e);
-          }, options.timeout);
-        }
-
-        if (xhr.setRequestHeader) {
-          for (key in headers) {
-            if (headers.hasOwnProperty(key)) {
-              xhr.setRequestHeader(key, headers[key]);
-            }
-          }
-        } else if (options.headers && !isEmpty(options.headers)) {
-          throw new Error("Headers cannot be set on an XDomainRequest object");
-        }
-
-        if ("responseType" in options) {
-          xhr.responseType = options.responseType;
-        }
-
-        if ("beforeSend" in options && typeof options.beforeSend === "function") {
-          options.beforeSend(xhr);
-        }
-
-        // Microsoft Edge browser sends "undefined" when send is called with undefined value.
-        // XMLHttpRequest spec says to pass null as body to indicate no body
-        // See https://github.com/naugtur/xhr/issues/100.
-        xhr.send(body || null);
-
-        return xhr;
-      }
-
-      function getXml(xhr) {
-        // xhr.responseXML will throw Exception "InvalidStateError" or "DOMException"
-        // See https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/responseXML.
-        try {
-          if (xhr.responseType === "document") {
-            return xhr.responseXML;
-          }
-          var firefoxBugTakenEffect = xhr.responseXML && xhr.responseXML.documentElement.nodeName === "parsererror";
-          if (xhr.responseType === "" && !firefoxBugTakenEffect) {
-            return xhr.responseXML;
-          }
-        } catch (e) {}
-
-        return null;
-      }
-
-      function noop() {}
-    }, { "global/window": 7, "is-function": 9, "parse-headers": 11, "xtend": 26 }], 26: [function (require, module, exports) {
-      module.exports = extend;
-
-      var hasOwnProperty = Object.prototype.hasOwnProperty;
-
-      function extend() {
-        var target = {};
-
-        for (var i = 0; i < arguments.length; i++) {
-          var source = arguments[i];
-
-          for (var key in source) {
-            if (hasOwnProperty.call(source, key)) {
-              target[key] = source[key];
-            }
-          }
-        }
-
-        return target;
-      }
-    }, {}], 27: [function (require, module, exports) {
-      //     Underscore.js 1.8.3
-      //     http://underscorejs.org
-      //     (c) 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
-      //     Underscore may be freely distributed under the MIT license.
-
-      (function () {
-
-        // Baseline setup
-        // --------------
-
-        // Establish the root object, `window` in the browser, or `exports` on the server.
-        var root = this;
-
-        // Save the previous value of the `_` variable.
-        var previousUnderscore = root._;
-
-        // Save bytes in the minified (but not gzipped) version:
-        var ArrayProto = Array.prototype,
-            ObjProto = Object.prototype,
-            FuncProto = Function.prototype;
-
-        // Create quick reference variables for speed access to core prototypes.
-        var push = ArrayProto.push,
-            slice = ArrayProto.slice,
-            toString = ObjProto.toString,
-            hasOwnProperty = ObjProto.hasOwnProperty;
-
-        // All **ECMAScript 5** native function implementations that we hope to use
-        // are declared here.
-        var nativeIsArray = Array.isArray,
-            nativeKeys = Object.keys,
-            nativeBind = FuncProto.bind,
-            nativeCreate = Object.create;
-
-        // Naked function reference for surrogate-prototype-swapping.
-        var Ctor = function Ctor() {};
-
-        // Create a safe reference to the Underscore object for use below.
-        var _ = function _(obj) {
-          if (obj instanceof _) return obj;
-          if (!(this instanceof _)) return new _(obj);
-          this._wrapped = obj;
-        };
-
-        // Export the Underscore object for **Node.js**, with
-        // backwards-compatibility for the old `require()` API. If we're in
-        // the browser, add `_` as a global object.
-        if (typeof exports !== 'undefined') {
-          if (typeof module !== 'undefined' && module.exports) {
-            exports = module.exports = _;
-          }
-          exports._ = _;
-        } else {
-          root._ = _;
-        }
-
-        // Current version.
-        _.VERSION = '1.8.3';
-
-        // Internal function that returns an efficient (for current engines) version
-        // of the passed-in callback, to be repeatedly applied in other Underscore
-        // functions.
-        var optimizeCb = function optimizeCb(func, context, argCount) {
-          if (context === void 0) return func;
-          switch (argCount == null ? 3 : argCount) {
-            case 1:
-              return function (value) {
-                return func.call(context, value);
-              };
-            case 2:
-              return function (value, other) {
-                return func.call(context, value, other);
-              };
-            case 3:
-              return function (value, index, collection) {
-                return func.call(context, value, index, collection);
-              };
-            case 4:
-              return function (accumulator, value, index, collection) {
-                return func.call(context, accumulator, value, index, collection);
-              };
-          }
-          return function () {
-            return func.apply(context, arguments);
-          };
-        };
-
-        // A mostly-internal function to generate callbacks that can be applied
-        // to each element in a collection, returning the desired result — either
-        // identity, an arbitrary callback, a property matcher, or a property accessor.
-        var cb = function cb(value, context, argCount) {
-          if (value == null) return _.identity;
-          if (_.isFunction(value)) return optimizeCb(value, context, argCount);
-          if (_.isObject(value)) return _.matcher(value);
-          return _.property(value);
-        };
-        _.iteratee = function (value, context) {
-          return cb(value, context, Infinity);
-        };
-
-        // An internal function for creating assigner functions.
-        var createAssigner = function createAssigner(keysFunc, undefinedOnly) {
-          return function (obj) {
-            var length = arguments.length;
-            if (length < 2 || obj == null) return obj;
-            for (var index = 1; index < length; index++) {
-              var source = arguments[index],
-                  keys = keysFunc(source),
-                  l = keys.length;
-              for (var i = 0; i < l; i++) {
-                var key = keys[i];
-                if (!undefinedOnly || obj[key] === void 0) obj[key] = source[key];
-              }
-            }
-            return obj;
-          };
-        };
-
-        // An internal function for creating a new object that inherits from another.
-        var baseCreate = function baseCreate(prototype) {
-          if (!_.isObject(prototype)) return {};
-          if (nativeCreate) return nativeCreate(prototype);
-          Ctor.prototype = prototype;
-          var result = new Ctor();
-          Ctor.prototype = null;
-          return result;
-        };
-
-        var property = function property(key) {
-          return function (obj) {
-            return obj == null ? void 0 : obj[key];
-          };
-        };
-
-        // Helper for collection methods to determine whether a collection
-        // should be iterated as an array or as an object
-        // Related: http://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength
-        // Avoids a very nasty iOS 8 JIT bug on ARM-64. #2094
-        var MAX_ARRAY_INDEX = Math.pow(2, 53) - 1;
-        var getLength = property('length');
-        var isArrayLike = function isArrayLike(collection) {
-          var length = getLength(collection);
-          return typeof length == 'number' && length >= 0 && length <= MAX_ARRAY_INDEX;
-        };
-
-        // Collection Functions
-        // --------------------
-
-        // The cornerstone, an `each` implementation, aka `forEach`.
-        // Handles raw objects in addition to array-likes. Treats all
-        // sparse array-likes as if they were dense.
-        _.each = _.forEach = function (obj, iteratee, context) {
-          iteratee = optimizeCb(iteratee, context);
-          var i, length;
-          if (isArrayLike(obj)) {
-            for (i = 0, length = obj.length; i < length; i++) {
-              iteratee(obj[i], i, obj);
-            }
-          } else {
-            var keys = _.keys(obj);
-            for (i = 0, length = keys.length; i < length; i++) {
-              iteratee(obj[keys[i]], keys[i], obj);
-            }
-          }
-          return obj;
-        };
-
-        // Return the results of applying the iteratee to each element.
-        _.map = _.collect = function (obj, iteratee, context) {
-          iteratee = cb(iteratee, context);
-          var keys = !isArrayLike(obj) && _.keys(obj),
-              length = (keys || obj).length,
-              results = Array(length);
-          for (var index = 0; index < length; index++) {
-            var currentKey = keys ? keys[index] : index;
-            results[index] = iteratee(obj[currentKey], currentKey, obj);
-          }
-          return results;
-        };
-
-        // Create a reducing function iterating left or right.
-        function createReduce(dir) {
-          // Optimized iterator function as using arguments.length
-          // in the main function will deoptimize the, see #1991.
-          function iterator(obj, iteratee, memo, keys, index, length) {
-            for (; index >= 0 && index < length; index += dir) {
-              var currentKey = keys ? keys[index] : index;
-              memo = iteratee(memo, obj[currentKey], currentKey, obj);
-            }
-            return memo;
-          }
-
-          return function (obj, iteratee, memo, context) {
-            iteratee = optimizeCb(iteratee, context, 4);
-            var keys = !isArrayLike(obj) && _.keys(obj),
-                length = (keys || obj).length,
-                index = dir > 0 ? 0 : length - 1;
-            // Determine the initial value if none is provided.
-            if (arguments.length < 3) {
-              memo = obj[keys ? keys[index] : index];
-              index += dir;
-            }
-            return iterator(obj, iteratee, memo, keys, index, length);
-          };
-        }
-
-        // **Reduce** builds up a single result from a list of values, aka `inject`,
-        // or `foldl`.
-        _.reduce = _.foldl = _.inject = createReduce(1);
-
-        // The right-associative version of reduce, also known as `foldr`.
-        _.reduceRight = _.foldr = createReduce(-1);
-
-        // Return the first value which passes a truth test. Aliased as `detect`.
-        _.find = _.detect = function (obj, predicate, context) {
-          var key;
-          if (isArrayLike(obj)) {
-            key = _.findIndex(obj, predicate, context);
-          } else {
-            key = _.findKey(obj, predicate, context);
-          }
-          if (key !== void 0 && key !== -1) return obj[key];
-        };
-
-        // Return all the elements that pass a truth test.
-        // Aliased as `select`.
-        _.filter = _.select = function (obj, predicate, context) {
-          var results = [];
-          predicate = cb(predicate, context);
-          _.each(obj, function (value, index, list) {
-            if (predicate(value, index, list)) results.push(value);
-          });
-          return results;
-        };
-
-        // Return all the elements for which a truth test fails.
-        _.reject = function (obj, predicate, context) {
-          return _.filter(obj, _.negate(cb(predicate)), context);
-        };
-
-        // Determine whether all of the elements match a truth test.
-        // Aliased as `all`.
-        _.every = _.all = function (obj, predicate, context) {
-          predicate = cb(predicate, context);
-          var keys = !isArrayLike(obj) && _.keys(obj),
-              length = (keys || obj).length;
-          for (var index = 0; index < length; index++) {
-            var currentKey = keys ? keys[index] : index;
-            if (!predicate(obj[currentKey], currentKey, obj)) return false;
-          }
-          return true;
-        };
-
-        // Determine if at least one element in the object matches a truth test.
-        // Aliased as `any`.
-        _.some = _.any = function (obj, predicate, context) {
-          predicate = cb(predicate, context);
-          var keys = !isArrayLike(obj) && _.keys(obj),
-              length = (keys || obj).length;
-          for (var index = 0; index < length; index++) {
-            var currentKey = keys ? keys[index] : index;
-            if (predicate(obj[currentKey], currentKey, obj)) return true;
-          }
-          return false;
-        };
-
-        // Determine if the array or object contains a given item (using `===`).
-        // Aliased as `includes` and `include`.
-        _.contains = _.includes = _.include = function (obj, item, fromIndex, guard) {
-          if (!isArrayLike(obj)) obj = _.values(obj);
-          if (typeof fromIndex != 'number' || guard) fromIndex = 0;
-          return _.indexOf(obj, item, fromIndex) >= 0;
-        };
-
-        // Invoke a method (with arguments) on every item in a collection.
-        _.invoke = function (obj, method) {
-          var args = slice.call(arguments, 2);
-          var isFunc = _.isFunction(method);
-          return _.map(obj, function (value) {
-            var func = isFunc ? method : value[method];
-            return func == null ? func : func.apply(value, args);
-          });
-        };
-
-        // Convenience version of a common use case of `map`: fetching a property.
-        _.pluck = function (obj, key) {
-          return _.map(obj, _.property(key));
-        };
-
-        // Convenience version of a common use case of `filter`: selecting only objects
-        // containing specific `key:value` pairs.
-        _.where = function (obj, attrs) {
-          return _.filter(obj, _.matcher(attrs));
-        };
-
-        // Convenience version of a common use case of `find`: getting the first object
-        // containing specific `key:value` pairs.
-        _.findWhere = function (obj, attrs) {
-          return _.find(obj, _.matcher(attrs));
-        };
-
-        // Return the maximum element (or element-based computation).
-        _.max = function (obj, iteratee, context) {
-          var result = -Infinity,
-              lastComputed = -Infinity,
-              value,
-              computed;
-          if (iteratee == null && obj != null) {
-            obj = isArrayLike(obj) ? obj : _.values(obj);
-            for (var i = 0, length = obj.length; i < length; i++) {
-              value = obj[i];
-              if (value > result) {
-                result = value;
-              }
-            }
-          } else {
-            iteratee = cb(iteratee, context);
-            _.each(obj, function (value, index, list) {
-              computed = iteratee(value, index, list);
-              if (computed > lastComputed || computed === -Infinity && result === -Infinity) {
-                result = value;
-                lastComputed = computed;
-              }
-            });
-          }
-          return result;
-        };
-
-        // Return the minimum element (or element-based computation).
-        _.min = function (obj, iteratee, context) {
-          var result = Infinity,
-              lastComputed = Infinity,
-              value,
-              computed;
-          if (iteratee == null && obj != null) {
-            obj = isArrayLike(obj) ? obj : _.values(obj);
-            for (var i = 0, length = obj.length; i < length; i++) {
-              value = obj[i];
-              if (value < result) {
-                result = value;
-              }
-            }
-          } else {
-            iteratee = cb(iteratee, context);
-            _.each(obj, function (value, index, list) {
-              computed = iteratee(value, index, list);
-              if (computed < lastComputed || computed === Infinity && result === Infinity) {
-                result = value;
-                lastComputed = computed;
-              }
-            });
-          }
-          return result;
-        };
-
-        // Shuffle a collection, using the modern version of the
-        // [Fisher-Yates shuffle](http://en.wikipedia.org/wiki/Fisher–Yates_shuffle).
-        _.shuffle = function (obj) {
-          var set = isArrayLike(obj) ? obj : _.values(obj);
-          var length = set.length;
-          var shuffled = Array(length);
-          for (var index = 0, rand; index < length; index++) {
-            rand = _.random(0, index);
-            if (rand !== index) shuffled[index] = shuffled[rand];
-            shuffled[rand] = set[index];
-          }
-          return shuffled;
-        };
-
-        // Sample **n** random values from a collection.
-        // If **n** is not specified, returns a single random element.
-        // The internal `guard` argument allows it to work with `map`.
-        _.sample = function (obj, n, guard) {
-          if (n == null || guard) {
-            if (!isArrayLike(obj)) obj = _.values(obj);
-            return obj[_.random(obj.length - 1)];
-          }
-          return _.shuffle(obj).slice(0, Math.max(0, n));
-        };
-
-        // Sort the object's values by a criterion produced by an iteratee.
-        _.sortBy = function (obj, iteratee, context) {
-          iteratee = cb(iteratee, context);
-          return _.pluck(_.map(obj, function (value, index, list) {
-            return {
-              value: value,
-              index: index,
-              criteria: iteratee(value, index, list)
-            };
-          }).sort(function (left, right) {
-            var a = left.criteria;
-            var b = right.criteria;
-            if (a !== b) {
-              if (a > b || a === void 0) return 1;
-              if (a < b || b === void 0) return -1;
-            }
-            return left.index - right.index;
-          }), 'value');
-        };
-
-        // An internal function used for aggregate "group by" operations.
-        var group = function group(behavior) {
-          return function (obj, iteratee, context) {
-            var result = {};
-            iteratee = cb(iteratee, context);
-            _.each(obj, function (value, index) {
-              var key = iteratee(value, index, obj);
-              behavior(result, value, key);
-            });
-            return result;
-          };
-        };
-
-        // Groups the object's values by a criterion. Pass either a string attribute
-        // to group by, or a function that returns the criterion.
-        _.groupBy = group(function (result, value, key) {
-          if (_.has(result, key)) result[key].push(value);else result[key] = [value];
-        });
-
-        // Indexes the object's values by a criterion, similar to `groupBy`, but for
-        // when you know that your index values will be unique.
-        _.indexBy = group(function (result, value, key) {
-          result[key] = value;
-        });
-
-        // Counts instances of an object that group by a certain criterion. Pass
-        // either a string attribute to count by, or a function that returns the
-        // criterion.
-        _.countBy = group(function (result, value, key) {
-          if (_.has(result, key)) result[key]++;else result[key] = 1;
-        });
-
-        // Safely create a real, live array from anything iterable.
-        _.toArray = function (obj) {
-          if (!obj) return [];
-          if (_.isArray(obj)) return slice.call(obj);
-          if (isArrayLike(obj)) return _.map(obj, _.identity);
-          return _.values(obj);
-        };
-
-        // Return the number of elements in an object.
-        _.size = function (obj) {
-          if (obj == null) return 0;
-          return isArrayLike(obj) ? obj.length : _.keys(obj).length;
-        };
-
-        // Split a collection into two arrays: one whose elements all satisfy the given
-        // predicate, and one whose elements all do not satisfy the predicate.
-        _.partition = function (obj, predicate, context) {
-          predicate = cb(predicate, context);
-          var pass = [],
-              fail = [];
-          _.each(obj, function (value, key, obj) {
-            (predicate(value, key, obj) ? pass : fail).push(value);
-          });
-          return [pass, fail];
-        };
-
-        // Array Functions
-        // ---------------
-
-        // Get the first element of an array. Passing **n** will return the first N
-        // values in the array. Aliased as `head` and `take`. The **guard** check
-        // allows it to work with `_.map`.
-        _.first = _.head = _.take = function (array, n, guard) {
-          if (array == null) return void 0;
-          if (n == null || guard) return array[0];
-          return _.initial(array, array.length - n);
-        };
-
-        // Returns everything but the last entry of the array. Especially useful on
-        // the arguments object. Passing **n** will return all the values in
-        // the array, excluding the last N.
-        _.initial = function (array, n, guard) {
-          return slice.call(array, 0, Math.max(0, array.length - (n == null || guard ? 1 : n)));
-        };
-
-        // Get the last element of an array. Passing **n** will return the last N
-        // values in the array.
-        _.last = function (array, n, guard) {
-          if (array == null) return void 0;
-          if (n == null || guard) return array[array.length - 1];
-          return _.rest(array, Math.max(0, array.length - n));
-        };
-
-        // Returns everything but the first entry of the array. Aliased as `tail` and `drop`.
-        // Especially useful on the arguments object. Passing an **n** will return
-        // the rest N values in the array.
-        _.rest = _.tail = _.drop = function (array, n, guard) {
-          return slice.call(array, n == null || guard ? 1 : n);
-        };
-
-        // Trim out all falsy values from an array.
-        _.compact = function (array) {
-          return _.filter(array, _.identity);
-        };
-
-        // Internal implementation of a recursive `flatten` function.
-        var flatten = function flatten(input, shallow, strict, startIndex) {
-          var output = [],
-              idx = 0;
-          for (var i = startIndex || 0, length = getLength(input); i < length; i++) {
-            var value = input[i];
-            if (isArrayLike(value) && (_.isArray(value) || _.isArguments(value))) {
-              //flatten current level of array or arguments object
-              if (!shallow) value = flatten(value, shallow, strict);
-              var j = 0,
-                  len = value.length;
-              output.length += len;
-              while (j < len) {
-                output[idx++] = value[j++];
-              }
-            } else if (!strict) {
-              output[idx++] = value;
-            }
-          }
-          return output;
-        };
-
-        // Flatten out an array, either recursively (by default), or just one level.
-        _.flatten = function (array, shallow) {
-          return flatten(array, shallow, false);
-        };
-
-        // Return a version of the array that does not contain the specified value(s).
-        _.without = function (array) {
-          return _.difference(array, slice.call(arguments, 1));
-        };
-
-        // Produce a duplicate-free version of the array. If the array has already
-        // been sorted, you have the option of using a faster algorithm.
-        // Aliased as `unique`.
-        _.uniq = _.unique = function (array, isSorted, iteratee, context) {
-          if (!_.isBoolean(isSorted)) {
-            context = iteratee;
-            iteratee = isSorted;
-            isSorted = false;
-          }
-          if (iteratee != null) iteratee = cb(iteratee, context);
-          var result = [];
-          var seen = [];
-          for (var i = 0, length = getLength(array); i < length; i++) {
-            var value = array[i],
-                computed = iteratee ? iteratee(value, i, array) : value;
-            if (isSorted) {
-              if (!i || seen !== computed) result.push(value);
-              seen = computed;
-            } else if (iteratee) {
-              if (!_.contains(seen, computed)) {
-                seen.push(computed);
-                result.push(value);
-              }
-            } else if (!_.contains(result, value)) {
-              result.push(value);
-            }
-          }
-          return result;
-        };
-
-        // Produce an array that contains the union: each distinct element from all of
-        // the passed-in arrays.
-        _.union = function () {
-          return _.uniq(flatten(arguments, true, true));
-        };
-
-        // Produce an array that contains every item shared between all the
-        // passed-in arrays.
-        _.intersection = function (array) {
-          var result = [];
-          var argsLength = arguments.length;
-          for (var i = 0, length = getLength(array); i < length; i++) {
-            var item = array[i];
-            if (_.contains(result, item)) continue;
-            for (var j = 1; j < argsLength; j++) {
-              if (!_.contains(arguments[j], item)) break;
-            }
-            if (j === argsLength) result.push(item);
-          }
-          return result;
-        };
-
-        // Take the difference between one array and a number of other arrays.
-        // Only the elements present in just the first array will remain.
-        _.difference = function (array) {
-          var rest = flatten(arguments, true, true, 1);
-          return _.filter(array, function (value) {
-            return !_.contains(rest, value);
-          });
-        };
-
-        // Zip together multiple lists into a single array -- elements that share
-        // an index go together.
-        _.zip = function () {
-          return _.unzip(arguments);
-        };
-
-        // Complement of _.zip. Unzip accepts an array of arrays and groups
-        // each array's elements on shared indices
-        _.unzip = function (array) {
-          var length = array && _.max(array, getLength).length || 0;
-          var result = Array(length);
-
-          for (var index = 0; index < length; index++) {
-            result[index] = _.pluck(array, index);
-          }
-          return result;
-        };
-
-        // Converts lists into objects. Pass either a single array of `[key, value]`
-        // pairs, or two parallel arrays of the same length -- one of keys, and one of
-        // the corresponding values.
-        _.object = function (list, values) {
-          var result = {};
-          for (var i = 0, length = getLength(list); i < length; i++) {
-            if (values) {
-              result[list[i]] = values[i];
-            } else {
-              result[list[i][0]] = list[i][1];
-            }
-          }
-          return result;
-        };
-
-        // Generator function to create the findIndex and findLastIndex functions
-        function createPredicateIndexFinder(dir) {
-          return function (array, predicate, context) {
-            predicate = cb(predicate, context);
-            var length = getLength(array);
-            var index = dir > 0 ? 0 : length - 1;
-            for (; index >= 0 && index < length; index += dir) {
-              if (predicate(array[index], index, array)) return index;
-            }
-            return -1;
-          };
-        }
-
-        // Returns the first index on an array-like that passes a predicate test
-        _.findIndex = createPredicateIndexFinder(1);
-        _.findLastIndex = createPredicateIndexFinder(-1);
-
-        // Use a comparator function to figure out the smallest index at which
-        // an object should be inserted so as to maintain order. Uses binary search.
-        _.sortedIndex = function (array, obj, iteratee, context) {
-          iteratee = cb(iteratee, context, 1);
-          var value = iteratee(obj);
-          var low = 0,
-              high = getLength(array);
-          while (low < high) {
-            var mid = Math.floor((low + high) / 2);
-            if (iteratee(array[mid]) < value) low = mid + 1;else high = mid;
-          }
-          return low;
-        };
-
-        // Generator function to create the indexOf and lastIndexOf functions
-        function createIndexFinder(dir, predicateFind, sortedIndex) {
-          return function (array, item, idx) {
-            var i = 0,
-                length = getLength(array);
-            if (typeof idx == 'number') {
-              if (dir > 0) {
-                i = idx >= 0 ? idx : Math.max(idx + length, i);
-              } else {
-                length = idx >= 0 ? Math.min(idx + 1, length) : idx + length + 1;
-              }
-            } else if (sortedIndex && idx && length) {
-              idx = sortedIndex(array, item);
-              return array[idx] === item ? idx : -1;
-            }
-            if (item !== item) {
-              idx = predicateFind(slice.call(array, i, length), _.isNaN);
-              return idx >= 0 ? idx + i : -1;
-            }
-            for (idx = dir > 0 ? i : length - 1; idx >= 0 && idx < length; idx += dir) {
-              if (array[idx] === item) return idx;
-            }
-            return -1;
-          };
-        }
-
-        // Return the position of the first occurrence of an item in an array,
-        // or -1 if the item is not included in the array.
-        // If the array is large and already in sort order, pass `true`
-        // for **isSorted** to use binary search.
-        _.indexOf = createIndexFinder(1, _.findIndex, _.sortedIndex);
-        _.lastIndexOf = createIndexFinder(-1, _.findLastIndex);
-
-        // Generate an integer Array containing an arithmetic progression. A port of
-        // the native Python `range()` function. See
-        // [the Python documentation](http://docs.python.org/library/functions.html#range).
-        _.range = function (start, stop, step) {
-          if (stop == null) {
-            stop = start || 0;
-            start = 0;
-          }
-          step = step || 1;
-
-          var length = Math.max(Math.ceil((stop - start) / step), 0);
-          var range = Array(length);
-
-          for (var idx = 0; idx < length; idx++, start += step) {
-            range[idx] = start;
-          }
-
-          return range;
-        };
-
-        // Function (ahem) Functions
-        // ------------------
-
-        // Determines whether to execute a function as a constructor
-        // or a normal function with the provided arguments
-        var executeBound = function executeBound(sourceFunc, boundFunc, context, callingContext, args) {
-          if (!(callingContext instanceof boundFunc)) return sourceFunc.apply(context, args);
-          var self = baseCreate(sourceFunc.prototype);
-          var result = sourceFunc.apply(self, args);
-          if (_.isObject(result)) return result;
-          return self;
-        };
-
-        // Create a function bound to a given object (assigning `this`, and arguments,
-        // optionally). Delegates to **ECMAScript 5**'s native `Function.bind` if
-        // available.
-        _.bind = function (func, context) {
-          if (nativeBind && func.bind === nativeBind) return nativeBind.apply(func, slice.call(arguments, 1));
-          if (!_.isFunction(func)) throw new TypeError('Bind must be called on a function');
-          var args = slice.call(arguments, 2);
-          var bound = function bound() {
-            return executeBound(func, bound, context, this, args.concat(slice.call(arguments)));
-          };
-          return bound;
-        };
-
-        // Partially apply a function by creating a version that has had some of its
-        // arguments pre-filled, without changing its dynamic `this` context. _ acts
-        // as a placeholder, allowing any combination of arguments to be pre-filled.
-        _.partial = function (func) {
-          var boundArgs = slice.call(arguments, 1);
-          var bound = function bound() {
-            var position = 0,
-                length = boundArgs.length;
-            var args = Array(length);
-            for (var i = 0; i < length; i++) {
-              args[i] = boundArgs[i] === _ ? arguments[position++] : boundArgs[i];
-            }
-            while (position < arguments.length) {
-              args.push(arguments[position++]);
-            }return executeBound(func, bound, this, this, args);
-          };
-          return bound;
-        };
-
-        // Bind a number of an object's methods to that object. Remaining arguments
-        // are the method names to be bound. Useful for ensuring that all callbacks
-        // defined on an object belong to it.
-        _.bindAll = function (obj) {
-          var i,
-              length = arguments.length,
-              key;
-          if (length <= 1) throw new Error('bindAll must be passed function names');
-          for (i = 1; i < length; i++) {
-            key = arguments[i];
-            obj[key] = _.bind(obj[key], obj);
-          }
-          return obj;
-        };
-
-        // Memoize an expensive function by storing its results.
-        _.memoize = function (func, hasher) {
-          var memoize = function memoize(key) {
-            var cache = memoize.cache;
-            var address = '' + (hasher ? hasher.apply(this, arguments) : key);
-            if (!_.has(cache, address)) cache[address] = func.apply(this, arguments);
-            return cache[address];
-          };
-          memoize.cache = {};
-          return memoize;
-        };
-
-        // Delays a function for the given number of milliseconds, and then calls
-        // it with the arguments supplied.
-        _.delay = function (func, wait) {
-          var args = slice.call(arguments, 2);
-          return setTimeout(function () {
-            return func.apply(null, args);
-          }, wait);
-        };
-
-        // Defers a function, scheduling it to run after the current call stack has
-        // cleared.
-        _.defer = _.partial(_.delay, _, 1);
-
-        // Returns a function, that, when invoked, will only be triggered at most once
-        // during a given window of time. Normally, the throttled function will run
-        // as much as it can, without ever going more than once per `wait` duration;
-        // but if you'd like to disable the execution on the leading edge, pass
-        // `{leading: false}`. To disable execution on the trailing edge, ditto.
-        _.throttle = function (func, wait, options) {
-          var context, args, result;
-          var timeout = null;
-          var previous = 0;
-          if (!options) options = {};
-          var later = function later() {
-            previous = options.leading === false ? 0 : _.now();
-            timeout = null;
-            result = func.apply(context, args);
-            if (!timeout) context = args = null;
-          };
-          return function () {
-            var now = _.now();
-            if (!previous && options.leading === false) previous = now;
-            var remaining = wait - (now - previous);
-            context = this;
-            args = arguments;
-            if (remaining <= 0 || remaining > wait) {
-              if (timeout) {
-                clearTimeout(timeout);
-                timeout = null;
-              }
-              previous = now;
-              result = func.apply(context, args);
-              if (!timeout) context = args = null;
-            } else if (!timeout && options.trailing !== false) {
-              timeout = setTimeout(later, remaining);
-            }
-            return result;
-          };
-        };
-
-        // Returns a function, that, as long as it continues to be invoked, will not
-        // be triggered. The function will be called after it stops being called for
-        // N milliseconds. If `immediate` is passed, trigger the function on the
-        // leading edge, instead of the trailing.
-        _.debounce = function (func, wait, immediate) {
-          var timeout, args, context, timestamp, result;
-
-          var later = function later() {
-            var last = _.now() - timestamp;
-
-            if (last < wait && last >= 0) {
-              timeout = setTimeout(later, wait - last);
-            } else {
-              timeout = null;
-              if (!immediate) {
-                result = func.apply(context, args);
-                if (!timeout) context = args = null;
-              }
-            }
-          };
-
-          return function () {
-            context = this;
-            args = arguments;
-            timestamp = _.now();
-            var callNow = immediate && !timeout;
-            if (!timeout) timeout = setTimeout(later, wait);
-            if (callNow) {
-              result = func.apply(context, args);
-              context = args = null;
-            }
-
-            return result;
-          };
-        };
-
-        // Returns the first function passed as an argument to the second,
-        // allowing you to adjust arguments, run code before and after, and
-        // conditionally execute the original function.
-        _.wrap = function (func, wrapper) {
-          return _.partial(wrapper, func);
-        };
-
-        // Returns a negated version of the passed-in predicate.
-        _.negate = function (predicate) {
-          return function () {
-            return !predicate.apply(this, arguments);
-          };
-        };
-
-        // Returns a function that is the composition of a list of functions, each
-        // consuming the return value of the function that follows.
-        _.compose = function () {
-          var args = arguments;
-          var start = args.length - 1;
-          return function () {
-            var i = start;
-            var result = args[start].apply(this, arguments);
-            while (i--) {
-              result = args[i].call(this, result);
-            }return result;
-          };
-        };
-
-        // Returns a function that will only be executed on and after the Nth call.
-        _.after = function (times, func) {
-          return function () {
-            if (--times < 1) {
-              return func.apply(this, arguments);
-            }
-          };
-        };
-
-        // Returns a function that will only be executed up to (but not including) the Nth call.
-        _.before = function (times, func) {
-          var memo;
-          return function () {
-            if (--times > 0) {
-              memo = func.apply(this, arguments);
-            }
-            if (times <= 1) func = null;
-            return memo;
-          };
-        };
-
-        // Returns a function that will be executed at most one time, no matter how
-        // often you call it. Useful for lazy initialization.
-        _.once = _.partial(_.before, 2);
-
-        // Object Functions
-        // ----------------
-
-        // Keys in IE < 9 that won't be iterated by `for key in ...` and thus missed.
-        var hasEnumBug = !{ toString: null }.propertyIsEnumerable('toString');
-        var nonEnumerableProps = ['valueOf', 'isPrototypeOf', 'toString', 'propertyIsEnumerable', 'hasOwnProperty', 'toLocaleString'];
-
-        function collectNonEnumProps(obj, keys) {
-          var nonEnumIdx = nonEnumerableProps.length;
-          var constructor = obj.constructor;
-          var proto = _.isFunction(constructor) && constructor.prototype || ObjProto;
-
-          // Constructor is a special case.
-          var prop = 'constructor';
-          if (_.has(obj, prop) && !_.contains(keys, prop)) keys.push(prop);
-
-          while (nonEnumIdx--) {
-            prop = nonEnumerableProps[nonEnumIdx];
-            if (prop in obj && obj[prop] !== proto[prop] && !_.contains(keys, prop)) {
-              keys.push(prop);
-            }
-          }
-        }
-
-        // Retrieve the names of an object's own properties.
-        // Delegates to **ECMAScript 5**'s native `Object.keys`
-        _.keys = function (obj) {
-          if (!_.isObject(obj)) return [];
-          if (nativeKeys) return nativeKeys(obj);
-          var keys = [];
-          for (var key in obj) {
-            if (_.has(obj, key)) keys.push(key);
-          } // Ahem, IE < 9.
-          if (hasEnumBug) collectNonEnumProps(obj, keys);
-          return keys;
-        };
-
-        // Retrieve all the property names of an object.
-        _.allKeys = function (obj) {
-          if (!_.isObject(obj)) return [];
-          var keys = [];
-          for (var key in obj) {
-            keys.push(key);
-          } // Ahem, IE < 9.
-          if (hasEnumBug) collectNonEnumProps(obj, keys);
-          return keys;
-        };
-
-        // Retrieve the values of an object's properties.
-        _.values = function (obj) {
-          var keys = _.keys(obj);
-          var length = keys.length;
-          var values = Array(length);
-          for (var i = 0; i < length; i++) {
-            values[i] = obj[keys[i]];
-          }
-          return values;
-        };
-
-        // Returns the results of applying the iteratee to each element of the object
-        // In contrast to _.map it returns an object
-        _.mapObject = function (obj, iteratee, context) {
-          iteratee = cb(iteratee, context);
-          var keys = _.keys(obj),
-              length = keys.length,
-              results = {},
-              currentKey;
-          for (var index = 0; index < length; index++) {
-            currentKey = keys[index];
-            results[currentKey] = iteratee(obj[currentKey], currentKey, obj);
-          }
-          return results;
-        };
-
-        // Convert an object into a list of `[key, value]` pairs.
-        _.pairs = function (obj) {
-          var keys = _.keys(obj);
-          var length = keys.length;
-          var pairs = Array(length);
-          for (var i = 0; i < length; i++) {
-            pairs[i] = [keys[i], obj[keys[i]]];
-          }
-          return pairs;
-        };
-
-        // Invert the keys and values of an object. The values must be serializable.
-        _.invert = function (obj) {
-          var result = {};
-          var keys = _.keys(obj);
-          for (var i = 0, length = keys.length; i < length; i++) {
-            result[obj[keys[i]]] = keys[i];
-          }
-          return result;
-        };
-
-        // Return a sorted list of the function names available on the object.
-        // Aliased as `methods`
-        _.functions = _.methods = function (obj) {
-          var names = [];
-          for (var key in obj) {
-            if (_.isFunction(obj[key])) names.push(key);
-          }
-          return names.sort();
-        };
-
-        // Extend a given object with all the properties in passed-in object(s).
-        _.extend = createAssigner(_.allKeys);
-
-        // Assigns a given object with all the own properties in the passed-in object(s)
-        // (https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object/assign)
-        _.extendOwn = _.assign = createAssigner(_.keys);
-
-        // Returns the first key on an object that passes a predicate test
-        _.findKey = function (obj, predicate, context) {
-          predicate = cb(predicate, context);
-          var keys = _.keys(obj),
-              key;
-          for (var i = 0, length = keys.length; i < length; i++) {
-            key = keys[i];
-            if (predicate(obj[key], key, obj)) return key;
-          }
-        };
-
-        // Return a copy of the object only containing the whitelisted properties.
-        _.pick = function (object, oiteratee, context) {
-          var result = {},
-              obj = object,
-              iteratee,
-              keys;
-          if (obj == null) return result;
-          if (_.isFunction(oiteratee)) {
-            keys = _.allKeys(obj);
-            iteratee = optimizeCb(oiteratee, context);
-          } else {
-            keys = flatten(arguments, false, false, 1);
-            iteratee = function iteratee(value, key, obj) {
-              return key in obj;
-            };
-            obj = Object(obj);
-          }
-          for (var i = 0, length = keys.length; i < length; i++) {
-            var key = keys[i];
-            var value = obj[key];
-            if (iteratee(value, key, obj)) result[key] = value;
-          }
-          return result;
-        };
-
-        // Return a copy of the object without the blacklisted properties.
-        _.omit = function (obj, iteratee, context) {
-          if (_.isFunction(iteratee)) {
-            iteratee = _.negate(iteratee);
-          } else {
-            var keys = _.map(flatten(arguments, false, false, 1), String);
-            iteratee = function iteratee(value, key) {
-              return !_.contains(keys, key);
-            };
-          }
-          return _.pick(obj, iteratee, context);
-        };
-
-        // Fill in a given object with default properties.
-        _.defaults = createAssigner(_.allKeys, true);
-
-        // Creates an object that inherits from the given prototype object.
-        // If additional properties are provided then they will be added to the
-        // created object.
-        _.create = function (prototype, props) {
-          var result = baseCreate(prototype);
-          if (props) _.extendOwn(result, props);
-          return result;
-        };
-
-        // Create a (shallow-cloned) duplicate of an object.
-        _.clone = function (obj) {
-          if (!_.isObject(obj)) return obj;
-          return _.isArray(obj) ? obj.slice() : _.extend({}, obj);
-        };
-
-        // Invokes interceptor with the obj, and then returns obj.
-        // The primary purpose of this method is to "tap into" a method chain, in
-        // order to perform operations on intermediate results within the chain.
-        _.tap = function (obj, interceptor) {
-          interceptor(obj);
-          return obj;
-        };
-
-        // Returns whether an object has a given set of `key:value` pairs.
-        _.isMatch = function (object, attrs) {
-          var keys = _.keys(attrs),
-              length = keys.length;
-          if (object == null) return !length;
-          var obj = Object(object);
-          for (var i = 0; i < length; i++) {
-            var key = keys[i];
-            if (attrs[key] !== obj[key] || !(key in obj)) return false;
-          }
-          return true;
-        };
-
-        // Internal recursive comparison function for `isEqual`.
-        var eq = function eq(a, b, aStack, bStack) {
-          // Identical objects are equal. `0 === -0`, but they aren't identical.
-          // See the [Harmony `egal` proposal](http://wiki.ecmascript.org/doku.php?id=harmony:egal).
-          if (a === b) return a !== 0 || 1 / a === 1 / b;
-          // A strict comparison is necessary because `null == undefined`.
-          if (a == null || b == null) return a === b;
-          // Unwrap any wrapped objects.
-          if (a instanceof _) a = a._wrapped;
-          if (b instanceof _) b = b._wrapped;
-          // Compare `[[Class]]` names.
-          var className = toString.call(a);
-          if (className !== toString.call(b)) return false;
-          switch (className) {
-            // Strings, numbers, regular expressions, dates, and booleans are compared by value.
-            case '[object RegExp]':
-            // RegExps are coerced to strings for comparison (Note: '' + /a/i === '/a/i')
-            case '[object String]':
-              // Primitives and their corresponding object wrappers are equivalent; thus, `"5"` is
-              // equivalent to `new String("5")`.
-              return '' + a === '' + b;
-            case '[object Number]':
-              // `NaN`s are equivalent, but non-reflexive.
-              // Object(NaN) is equivalent to NaN
-              if (+a !== +a) return +b !== +b;
-              // An `egal` comparison is performed for other numeric values.
-              return +a === 0 ? 1 / +a === 1 / b : +a === +b;
-            case '[object Date]':
-            case '[object Boolean]':
-              // Coerce dates and booleans to numeric primitive values. Dates are compared by their
-              // millisecond representations. Note that invalid dates with millisecond representations
-              // of `NaN` are not equivalent.
-              return +a === +b;
-          }
-
-          var areArrays = className === '[object Array]';
-          if (!areArrays) {
-            if ((typeof a === "undefined" ? "undefined" : _typeof(a)) != 'object' || (typeof b === "undefined" ? "undefined" : _typeof(b)) != 'object') return false;
-
-            // Objects with different constructors are not equivalent, but `Object`s or `Array`s
-            // from different frames are.
-            var aCtor = a.constructor,
-                bCtor = b.constructor;
-            if (aCtor !== bCtor && !(_.isFunction(aCtor) && aCtor instanceof aCtor && _.isFunction(bCtor) && bCtor instanceof bCtor) && 'constructor' in a && 'constructor' in b) {
-              return false;
-            }
-          }
-          // Assume equality for cyclic structures. The algorithm for detecting cyclic
-          // structures is adapted from ES 5.1 section 15.12.3, abstract operation `JO`.
-
-          // Initializing stack of traversed objects.
-          // It's done here since we only need them for objects and arrays comparison.
-          aStack = aStack || [];
-          bStack = bStack || [];
-          var length = aStack.length;
-          while (length--) {
-            // Linear search. Performance is inversely proportional to the number of
-            // unique nested structures.
-            if (aStack[length] === a) return bStack[length] === b;
-          }
-
-          // Add the first object to the stack of traversed objects.
-          aStack.push(a);
-          bStack.push(b);
-
-          // Recursively compare objects and arrays.
-          if (areArrays) {
-            // Compare array lengths to determine if a deep comparison is necessary.
-            length = a.length;
-            if (length !== b.length) return false;
-            // Deep compare the contents, ignoring non-numeric properties.
-            while (length--) {
-              if (!eq(a[length], b[length], aStack, bStack)) return false;
-            }
-          } else {
-            // Deep compare objects.
-            var keys = _.keys(a),
-                key;
-            length = keys.length;
-            // Ensure that both objects contain the same number of properties before comparing deep equality.
-            if (_.keys(b).length !== length) return false;
-            while (length--) {
-              // Deep compare each member
-              key = keys[length];
-              if (!(_.has(b, key) && eq(a[key], b[key], aStack, bStack))) return false;
-            }
-          }
-          // Remove the first object from the stack of traversed objects.
-          aStack.pop();
-          bStack.pop();
-          return true;
-        };
-
-        // Perform a deep comparison to check if two objects are equal.
-        _.isEqual = function (a, b) {
-          return eq(a, b);
-        };
-
-        // Is a given array, string, or object empty?
-        // An "empty" object has no enumerable own-properties.
-        _.isEmpty = function (obj) {
-          if (obj == null) return true;
-          if (isArrayLike(obj) && (_.isArray(obj) || _.isString(obj) || _.isArguments(obj))) return obj.length === 0;
-          return _.keys(obj).length === 0;
-        };
-
-        // Is a given value a DOM element?
-        _.isElement = function (obj) {
-          return !!(obj && obj.nodeType === 1);
-        };
-
-        // Is a given value an array?
-        // Delegates to ECMA5's native Array.isArray
-        _.isArray = nativeIsArray || function (obj) {
-          return toString.call(obj) === '[object Array]';
-        };
-
-        // Is a given variable an object?
-        _.isObject = function (obj) {
-          var type = typeof obj === "undefined" ? "undefined" : _typeof(obj);
-          return type === 'function' || type === 'object' && !!obj;
-        };
-
-        // Add some isType methods: isArguments, isFunction, isString, isNumber, isDate, isRegExp, isError.
-        _.each(['Arguments', 'Function', 'String', 'Number', 'Date', 'RegExp', 'Error'], function (name) {
-          _['is' + name] = function (obj) {
-            return toString.call(obj) === '[object ' + name + ']';
-          };
-        });
-
-        // Define a fallback version of the method in browsers (ahem, IE < 9), where
-        // there isn't any inspectable "Arguments" type.
-        if (!_.isArguments(arguments)) {
-          _.isArguments = function (obj) {
-            return _.has(obj, 'callee');
-          };
-        }
-
-        // Optimize `isFunction` if appropriate. Work around some typeof bugs in old v8,
-        // IE 11 (#1621), and in Safari 8 (#1929).
-        if (typeof /./ != 'function' && (typeof Int8Array === "undefined" ? "undefined" : _typeof(Int8Array)) != 'object') {
-          _.isFunction = function (obj) {
-            return typeof obj == 'function' || false;
-          };
-        }
-
-        // Is a given object a finite number?
-        _.isFinite = function (obj) {
-          return isFinite(obj) && !isNaN(parseFloat(obj));
-        };
-
-        // Is the given value `NaN`? (NaN is the only number which does not equal itself).
-        _.isNaN = function (obj) {
-          return _.isNumber(obj) && obj !== +obj;
-        };
-
-        // Is a given value a boolean?
-        _.isBoolean = function (obj) {
-          return obj === true || obj === false || toString.call(obj) === '[object Boolean]';
-        };
-
-        // Is a given value equal to null?
-        _.isNull = function (obj) {
-          return obj === null;
-        };
-
-        // Is a given variable undefined?
-        _.isUndefined = function (obj) {
-          return obj === void 0;
-        };
-
-        // Shortcut function for checking if an object has a given property directly
-        // on itself (in other words, not on a prototype).
-        _.has = function (obj, key) {
-          return obj != null && hasOwnProperty.call(obj, key);
-        };
-
-        // Utility Functions
-        // -----------------
-
-        // Run Underscore.js in *noConflict* mode, returning the `_` variable to its
-        // previous owner. Returns a reference to the Underscore object.
-        _.noConflict = function () {
-          root._ = previousUnderscore;
-          return this;
-        };
-
-        // Keep the identity function around for default iteratees.
-        _.identity = function (value) {
-          return value;
-        };
-
-        // Predicate-generating functions. Often useful outside of Underscore.
-        _.constant = function (value) {
-          return function () {
-            return value;
-          };
-        };
-
-        _.noop = function () {};
-
-        _.property = property;
-
-        // Generates a function for a given object that returns a given property.
-        _.propertyOf = function (obj) {
-          return obj == null ? function () {} : function (key) {
-            return obj[key];
-          };
-        };
-
-        // Returns a predicate for checking whether an object has a given set of
-        // `key:value` pairs.
-        _.matcher = _.matches = function (attrs) {
-          attrs = _.extendOwn({}, attrs);
-          return function (obj) {
-            return _.isMatch(obj, attrs);
-          };
-        };
-
-        // Run a function **n** times.
-        _.times = function (n, iteratee, context) {
-          var accum = Array(Math.max(0, n));
-          iteratee = optimizeCb(iteratee, context, 1);
-          for (var i = 0; i < n; i++) {
-            accum[i] = iteratee(i);
-          }return accum;
-        };
-
-        // Return a random integer between min and max (inclusive).
-        _.random = function (min, max) {
-          if (max == null) {
-            max = min;
-            min = 0;
-          }
-          return min + Math.floor(Math.random() * (max - min + 1));
-        };
-
-        // A (possibly faster) way to get the current timestamp as an integer.
-        _.now = Date.now || function () {
-          return new Date().getTime();
-        };
-
-        // List of HTML entities for escaping.
-        var escapeMap = {
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#x27;',
-          '`': '&#x60;'
-        };
-        var unescapeMap = _.invert(escapeMap);
-
-        // Functions for escaping and unescaping strings to/from HTML interpolation.
-        var createEscaper = function createEscaper(map) {
-          var escaper = function escaper(match) {
-            return map[match];
-          };
-          // Regexes for identifying a key that needs to be escaped
-          var source = '(?:' + _.keys(map).join('|') + ')';
-          var testRegexp = RegExp(source);
-          var replaceRegexp = RegExp(source, 'g');
-          return function (string) {
-            string = string == null ? '' : '' + string;
-            return testRegexp.test(string) ? string.replace(replaceRegexp, escaper) : string;
-          };
-        };
-        _.escape = createEscaper(escapeMap);
-        _.unescape = createEscaper(unescapeMap);
-
-        // If the value of the named `property` is a function then invoke it with the
-        // `object` as context; otherwise, return it.
-        _.result = function (object, property, fallback) {
-          var value = object == null ? void 0 : object[property];
-          if (value === void 0) {
-            value = fallback;
-          }
-          return _.isFunction(value) ? value.call(object) : value;
-        };
-
-        // Generate a unique integer id (unique within the entire client session).
-        // Useful for temporary DOM ids.
-        var idCounter = 0;
-        _.uniqueId = function (prefix) {
-          var id = ++idCounter + '';
-          return prefix ? prefix + id : id;
-        };
-
-        // By default, Underscore uses ERB-style template delimiters, change the
-        // following template settings to use alternative delimiters.
-        _.templateSettings = {
-          evaluate: /<%([\s\S]+?)%>/g,
-          interpolate: /<%=([\s\S]+?)%>/g,
-          escape: /<%-([\s\S]+?)%>/g
-        };
-
-        // When customizing `templateSettings`, if you don't want to define an
-        // interpolation, evaluation or escaping regex, we need one that is
-        // guaranteed not to match.
-        var noMatch = /(.)^/;
-
-        // Certain characters need to be escaped so that they can be put into a
-        // string literal.
-        var escapes = {
-          "'": "'",
-          '\\': '\\',
-          '\r': 'r',
-          '\n': 'n',
-          "\u2028": 'u2028',
-          "\u2029": 'u2029'
-        };
-
-        var escaper = /\\|'|\r|\n|\u2028|\u2029/g;
-
-        var escapeChar = function escapeChar(match) {
-          return '\\' + escapes[match];
-        };
-
-        // JavaScript micro-templating, similar to John Resig's implementation.
-        // Underscore templating handles arbitrary delimiters, preserves whitespace,
-        // and correctly escapes quotes within interpolated code.
-        // NB: `oldSettings` only exists for backwards compatibility.
-        _.template = function (text, settings, oldSettings) {
-          if (!settings && oldSettings) settings = oldSettings;
-          settings = _.defaults({}, settings, _.templateSettings);
-
-          // Combine delimiters into one regular expression via alternation.
-          var matcher = RegExp([(settings.escape || noMatch).source, (settings.interpolate || noMatch).source, (settings.evaluate || noMatch).source].join('|') + '|$', 'g');
-
-          // Compile the template source, escaping string literals appropriately.
-          var index = 0;
-          var source = "__p+='";
-          text.replace(matcher, function (match, escape, interpolate, evaluate, offset) {
-            source += text.slice(index, offset).replace(escaper, escapeChar);
-            index = offset + match.length;
-
-            if (escape) {
-              source += "'+\n((__t=(" + escape + "))==null?'':_.escape(__t))+\n'";
-            } else if (interpolate) {
-              source += "'+\n((__t=(" + interpolate + "))==null?'':__t)+\n'";
-            } else if (evaluate) {
-              source += "';\n" + evaluate + "\n__p+='";
-            }
-
-            // Adobe VMs need the match returned to produce the correct offest.
-            return match;
-          });
-          source += "';\n";
-
-          // If a variable is not specified, place data values in local scope.
-          if (!settings.variable) source = 'with(obj||{}){\n' + source + '}\n';
-
-          source = "var __t,__p='',__j=Array.prototype.join," + "print=function(){__p+=__j.call(arguments,'');};\n" + source + 'return __p;\n';
-
-          try {
-            var render = new Function(settings.variable || 'obj', '_', source);
-          } catch (e) {
-            e.source = source;
-            throw e;
-          }
-
-          var template = function template(data) {
-            return render.call(this, data, _);
-          };
-
-          // Provide the compiled source as a convenience for precompilation.
-          var argument = settings.variable || 'obj';
-          template.source = 'function(' + argument + '){\n' + source + '}';
-
-          return template;
-        };
-
-        // Add a "chain" function. Start chaining a wrapped Underscore object.
-        _.chain = function (obj) {
-          var instance = _(obj);
-          instance._chain = true;
-          return instance;
-        };
-
-        // OOP
-        // ---------------
-        // If Underscore is called as a function, it returns a wrapped object that
-        // can be used OO-style. This wrapper holds altered versions of all the
-        // underscore functions. Wrapped objects may be chained.
-
-        // Helper function to continue chaining intermediate results.
-        var result = function result(instance, obj) {
-          return instance._chain ? _(obj).chain() : obj;
-        };
-
-        // Add your own custom functions to the Underscore object.
-        _.mixin = function (obj) {
-          _.each(_.functions(obj), function (name) {
-            var func = _[name] = obj[name];
-            _.prototype[name] = function () {
-              var args = [this._wrapped];
-              push.apply(args, arguments);
-              return result(this, func.apply(_, args));
-            };
-          });
-        };
-
-        // Add all of the Underscore functions to the wrapper object.
-        _.mixin(_);
-
-        // Add all mutator Array functions to the wrapper.
-        _.each(['pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift'], function (name) {
-          var method = ArrayProto[name];
-          _.prototype[name] = function () {
-            var obj = this._wrapped;
-            method.apply(obj, arguments);
-            if ((name === 'shift' || name === 'splice') && obj.length === 0) delete obj[0];
-            return result(this, obj);
-          };
-        });
-
-        // Add all accessor Array functions to the wrapper.
-        _.each(['concat', 'join', 'slice'], function (name) {
-          var method = ArrayProto[name];
-          _.prototype[name] = function () {
-            return result(this, method.apply(this._wrapped, arguments));
-          };
-        });
-
-        // Extracts the result from a wrapped and chained object.
-        _.prototype.value = function () {
-          return this._wrapped;
-        };
-
-        // Provide unwrapping proxy for some methods used in engine operations
-        // such as arithmetic and JSON stringification.
-        _.prototype.valueOf = _.prototype.toJSON = _.prototype.value;
-
-        _.prototype.toString = function () {
-          return '' + this._wrapped;
-        };
-
-        // AMD registration happens at the end for compatibility with AMD loaders
-        // that may not enforce next-turn semantics on modules. Even though general
-        // practice for AMD registration is to be anonymous, underscore registers
-        // as a named module because, like jQuery, it is a base library that is
-        // popular enough to be bundled in a third party lib, but not be part of
-        // an AMD load request. Those cases could generate an error when an
-        // anonymous define() is called outside of a loader request.
-        if (typeof define === 'function' && define.amd) {
-          define('underscore', [], function () {
-            return _;
-          });
-        }
-      }).call(this);
-    }, {}], "Web3Bzz": [function (require, module, exports) {
+    }, { "buffer": 1 }], "Web3Bzz": [function (require, module, exports) {
       /*
           This file is part of web3.js.
       
@@ -7382,6 +7584,6 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
       };
 
       module.exports = Bzz;
-    }, { "swarm-js": 14, "underscore": 27 }] }, {}, ["Web3Bzz"])("Web3Bzz");
+    }, { "swarm-js": 14, "underscore": 19 }] }, {}, ["Web3Bzz"])("Web3Bzz");
 });
 //# sourceMappingURL=web3-bzz.js.map

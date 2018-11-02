@@ -30,6 +30,7 @@ var Method = require('../../web3-core-method');
 var utils = require('../../web3-utils');
 var Net = require('../../web3-net');
 
+var ENS = require('../../web3-eth-ens');
 var Personal = require('../../web3-eth-personal');
 var BaseContract = require('../../web3-eth-contract');
 var Iban = require('../../web3-eth-iban');
@@ -180,6 +181,8 @@ var Eth = function Eth() {
     // add ABI
     this.abi = abi;
 
+    // add ENS
+    this.ens = new ENS(this);
 
     var methods = [
         new Method({
@@ -356,26 +359,6 @@ var Eth = function Eth() {
             outputFormatter: utils.hexToNumber
         }),
         new Method({
-            name: 'getCompilers',
-            call: 'eth_getCompilers',
-            params: 0
-        }),
-        new Method({
-            name: 'compile.solidity',
-            call: 'eth_compileSolidity',
-            params: 1
-        }),
-        new Method({
-            name: 'compile.lll',
-            call: 'eth_compileLLL',
-            params: 1
-        }),
-        new Method({
-            name: 'compile.serpent',
-            call: 'eth_compileSerpent',
-            params: 1
-        }),
-        new Method({
             name: 'submitWork',
             call: 'eth_submitWork',
             params: 3
@@ -487,4 +470,3 @@ core.addProviders(Eth);
 
 
 module.exports = Eth;
-
